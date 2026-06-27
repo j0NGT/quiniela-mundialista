@@ -15,6 +15,12 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+// ============================================================
+// CONFIGURACION - REEMPLAZA TU_ANON_KEY_AQUI
+// ============================================================
+var SB_URL = 'https://xorknuzclwwxtyelwypx.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhvcmtudXpjbHd3eHR5ZWx3eXB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NzcwNjAsImV4cCI6MjA5ODE1MzA2MH0.RmNPehSveuEcqIlBceaz6iX-h9egdHX7z70rvp2z8is';
+
 tailwind.config={theme:{extend:{colors:{bg:'#080c14',surface:'#0d1320',card:'#111a2e',border:'#1a2744',gold:'#d4a537',goldlight:'#f0d078',success:'#10b981',danger:'#ef4444',info:'#3b82f6',txt:'#e2e8f0',muted:'#5a6a8a'},fontFamily:{display:['Oswald','sans-serif'],body:['DM Sans','sans-serif']}}}}
 </script>
 <style>
@@ -122,7 +128,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:#e2e8f0;min-hei
           <i class="fas fa-unlock mr-2"></i>Entrar
         </button>
       </div>
-      <p id="pin-loading" class="text-center text-muted text-xs mt-4" style="display:none"><span class="spinner"></span> Verificando...</p>
+      <p id="pin-loading" class="text-center text-muted text-xs mt-4" style="display:none"><span class="spinner"></span> Conectando...</p>
     </div>
   </div>
 </div>
@@ -150,8 +156,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:#e2e8f0;min-hei
           <i class="fas fa-arrow-right mr-2"></i>Entrar a la Quiniela
         </button>
       </div>
-      <div class="mt-6 flex items-center justify-between text-xs">
-        <button onclick="doLogout()" class="text-muted hover:text-gold transition-colors cursor-pointer bg-transparent border-none font-body">
+      <div class="mt-6 text-center">
+        <button onclick="doLogout()" class="text-muted hover:text-gold transition-colors cursor-pointer bg-transparent border-none font-body text-xs">
           <i class="fas fa-arrow-left mr-1"></i>Cambiar PIN
         </button>
       </div>
@@ -227,57 +233,56 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:#e2e8f0;min-hei
 // ============================================================
 // ESTADO GLOBAL
 // ============================================================
-var sb = null;           // Cliente Supabase
-var ME = null;           // { id: uuid, name: string }
-var SETS = null;         // { id, locked, admin_pin_hash }
-var MATCHES = [];        // Array de partidos
+var sb = null;
+var ME = null;
+var SETS = null;
+var MATCHES = [];
 var IS_ADMIN = false;
 var CUR_SCREEN = 'predictions';
 var ADM_TAB = 'matches';
 var DET_MATCH = 1;
-var ALL_PREDICTIONS = []; // Cache para standings
+var ALL_PREDICTIONS = [];
 var ALL_PLAYERS = [];
 
 // ============================================================
-// INIT: Cargar config de Supabase y verificar sesión
+// SHA-256 en el navegador
+// ============================================================
+async function sha256(str) {
+  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+}
+
+// ============================================================
+// INIT
 // ============================================================
 async function init() {
   try {
-    // 1. Obtener credenciales desde el endpoint seguro (env vars)
-    var cfgRes = await fetch('/api/config');
-    if (!cfgRes.ok) throw new Error('No se pudo obtener la configuracion');
-    var cfg = await cfgRes.json();
+    sb = window.supabase.createClient(SB_URL, SB_KEY);
 
-    // 2. Inicializar cliente Supabase
-    sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-
-    // 3. Verificar si hay sesión activa
-    var sessionData = sessionStorage.getItem('qm_session');
+    // Verificar sesión previa
     var pinOk = sessionStorage.getItem('qm_pin_ok') === 'true';
+    var sessData = sessionStorage.getItem('qm_session');
 
-    if (pinOk && sessionData) {
-      ME = JSON.parse(sessionData);
-      // Verificar que el jugador sigue existiendo en Supabase
-      var { data: playerCheck } = await sb.from('players').select('id,name').eq('id', ME.id).single();
-      if (playerCheck) {
-        ME = playerCheck;
+    if (pinOk && sessData) {
+      ME = JSON.parse(sessData);
+      // Verificar que el jugador existe
+      var { data: pc } = await sb.from('players').select('id,name').eq('id', ME.id).single();
+      if (pc) {
+        ME = pc;
         await loadAppData();
         return;
       }
     }
 
-    // 4. Mostrar pantalla de PIN
     showScreen('screen-pin');
     document.getElementById('pin-entry').focus();
-
   } catch (err) {
-    console.error('Error de inicializacion:', err);
-    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#fca5a5;font-family:sans-serif;text-align:center;padding:20px"><div><i class="fas fa-exclamation-triangle" style="font-size:48px;margin-bottom:16px;display:block"></i><p style="font-size:18px;margin-bottom:8px">Error de conexion</p><p style="font-size:14px;color:#5a6a8a">' + esc(err.message) + '</p><p style="font-size:12px;color:#5a6a8a;margin-top:16px">Verifica las variables de entorno en Cloudflare y que Supabase este accesible.</p></div></div>';
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#fca5a5;font-family:sans-serif;text-align:center;padding:20px"><div><i class="fas fa-exclamation-triangle" style="font-size:48px;margin-bottom:16px;display:block"></i><p style="font-size:18px;margin-bottom:8px">Error de conexion</p><p style="font-size:14px;color:#5a6a8a">' + esc(String(err)) + '</p><p style="font-size:12px;color:#5a6a8a;margin-top:16px">Verifica que la SUPABASE_ANON_KEY este correcta en index.html linea 8</p></div></div>';
   }
 }
 
 // ============================================================
-// PIN DE ENTRADA (verificación servidor → hash nunca expuesto)
+// PIN DE ENTRADA: verificar contra hash en Supabase
 // ============================================================
 async function handlePinSubmit() {
   var pin = document.getElementById('pin-entry').value.trim();
@@ -289,23 +294,25 @@ async function handlePinSubmit() {
   load.style.display = 'block';
 
   try {
-    var res = await fetch('/api/verify-pin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: pin })
-    });
+    // Leer el hash almacenado en Supabase
+    var { data: settings, error } = await sb.from('settings').select('entry_pin_hash').single();
+    if (error) throw error;
 
-    if (res.ok) {
+    // Calcular hash del PIN ingresado
+    var hash = await sha256(pin);
+
+    if (hash === settings.entry_pin_hash) {
       sessionStorage.setItem('qm_pin_ok', 'true');
       showScreen('screen-login');
       document.getElementById('login-name').focus();
+      toast('PIN correcto', 'success');
     } else {
       toast('PIN incorrecto', 'error');
       document.getElementById('pin-entry').value = '';
       document.getElementById('pin-entry').focus();
     }
   } catch (e) {
-    toast('Error de conexion', 'error');
+    toast('Error: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
     load.style.display = 'none';
@@ -313,7 +320,7 @@ async function handlePinSubmit() {
 }
 
 // ============================================================
-// LOGIN: Registrar/obtener jugador en Supabase
+// LOGIN
 // ============================================================
 async function handleLogin() {
   var inp = document.getElementById('login-name');
@@ -323,43 +330,34 @@ async function handleLogin() {
 
   inp.disabled = true;
   try {
-    // Upsert: si existe devuelve el existente, si no lo crea
-    var { data, error } = await sb.from('players')
-      .upsert({ name: name }, { onConflict: 'name' })
-      .select()
-      .single();
-
+    var { data, error } = await sb.from('players').upsert({ name: name }, { onConflict: 'name' }).select().single();
     if (error) throw error;
-
     ME = data;
     sessionStorage.setItem('qm_session', JSON.stringify(ME));
     await loadAppData();
     toast('Bienvenido, ' + name, 'success');
   } catch (e) {
-    toast('Error al registrar: ' + e.message, 'error');
+    toast('Error: ' + e.message, 'error');
   } finally {
     inp.disabled = false;
   }
 }
 
 // ============================================================
-// CARGAR DATOS DE LA APP
+// CARGAR DATOS
 // ============================================================
 async function loadAppData() {
   try {
-    var [setsRes, matchesRes] = await Promise.all([
+    var [sR, mR] = await Promise.all([
       sb.from('settings').select('*').single(),
       sb.from('matches').select('*').order('id')
     ]);
-
-    SETS = setsRes.data;
-    MATCHES = matchesRes.data;
-
+    SETS = sR.data;
+    MATCHES = mR.data;
     document.getElementById('screen-pin').classList.remove('active');
     document.getElementById('screen-login').classList.remove('active');
     document.getElementById('app-main').style.display = 'block';
     document.getElementById('sidebar-username').textContent = ME.name;
-
     navTo('predictions');
   } catch (e) {
     toast('Error cargando datos', 'error');
@@ -371,7 +369,7 @@ async function loadAppData() {
 // LOGOUT
 // ============================================================
 function doLogout() {
-  ME = null; SETS = null; MATCHES = []; IS_ADMIN = false;
+  ME = null; SETS = null; MATCHES = []; IS_ADMIN = false; ALL_PREDICTIONS = []; ALL_PLAYERS = [];
   sessionStorage.removeItem('qm_session');
   sessionStorage.removeItem('qm_pin_ok');
   document.getElementById('app-main').style.display = 'none';
@@ -410,10 +408,8 @@ function navTo(sid) {
 function cmpPts(pred, m) {
   if (m.home_result === null || m.away_result === null) return 0;
   if (!pred) return 0;
-  var ph = pred.home_goals, pa = pred.away_goals;
-  var rh = m.home_result, ra = m.away_result;
-  if (ph === rh && pa === ra) return 5;
-  if (Math.sign(ph - pa) === Math.sign(rh - ra)) return 3;
+  if (pred.home_goals === m.home_result && pred.away_goals === m.away_result) return 5;
+  if (Math.sign(pred.home_goals - pred.away_goals) === Math.sign(m.home_result - m.away_result)) return 3;
   return 0;
 }
 
@@ -423,56 +419,36 @@ function cmpPts(pred, m) {
 async function rPred() {
   var c = document.getElementById('predictions-content');
   c.innerHTML = '<div class="text-center py-16"><span class="spinner"></span></div>';
-
   try {
-    var { data: preds } = await sb.from('predictions')
-      .select('*').eq('player_id', ME.id);
-
-    var predMap = {};
-    (preds || []).forEach(function(p) { predMap[p.match_id] = p; });
-
+    var { data: preds } = await sb.from('predictions').select('*').eq('player_id', ME.id);
+    var predMap = {}; (preds || []).forEach(function(p) { predMap[p.match_id] = p; });
     var lk = SETS.locked;
     var hasR = MATCHES.some(function(m) { return m.home_result !== null; });
-    var st = lk
-      ? '<span class="status-badge status-locked"><i class="fas fa-lock text-[10px]"></i> Cerrado</span>'
-      : '<span class="status-badge status-open"><i class="fas fa-lock-open text-[10px]"></i> Abierto</span>';
-
+    var st = lk ? '<span class="status-badge status-locked"><i class="fas fa-lock text-[10px]"></i> Cerrado</span>' : '<span class="status-badge status-open"><i class="fas fa-lock-open text-[10px]"></i> Abierto</span>';
     var h = '<div class="flex flex-wrap items-center justify-between gap-3 mb-6"><div><h2 class="font-display text-2xl font-bold text-txt">Mis Predicciones</h2><p class="text-muted text-sm mt-0.5">Octavos de Final — ' + st + '</p></div>';
     if (!lk) h += '<button class="btn-gold text-sm" onclick="savePred()"><i class="fas fa-save mr-2"></i>Guardar</button>';
     h += '</div>';
     if (lk) h += '<div class="bg-danger/8 border border-danger/20 rounded-xl p-3 mb-5 text-sm text-danger/80 flex items-center gap-2" style="animation:sd .3s ease"><i class="fas fa-info-circle"></i>Las predicciones estan cerradas.</div>';
-
     h += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
     MATCHES.forEach(function(m) {
-      var pr = predMap[m.id];
-      var ph = pr ? pr.home_goals : '', pa = pr ? pr.away_goals : '';
-      var hr = m.home_result !== null && m.away_result !== null;
-      var pts = cmpPts(pr, m);
+      var pr = predMap[m.id]; var ph = pr ? pr.home_goals : ''; var pa = pr ? pr.away_goals : '';
+      var hr = m.home_result !== null && m.away_result !== null; var pts = cmpPts(pr, m);
       var rh = '';
       if (hr) {
-        var pb = '';
-        if (pts === 5) pb = '<span class="inline-flex items-center gap-1 text-gold text-xs font-bold"><i class="fas fa-star"></i> +5</span>';
-        else if (pts === 3) pb = '<span class="inline-flex items-center gap-1 text-success text-xs font-bold"><i class="fas fa-check"></i> +3</span>';
-        else pb = '<span class="inline-flex items-center gap-1 text-danger/60 text-xs"><i class="fas fa-xmark"></i> 0</span>';
+        var pb = pts === 5 ? '<span class="inline-flex items-center gap-1 text-gold text-xs font-bold"><i class="fas fa-star"></i> +5</span>' : pts === 3 ? '<span class="inline-flex items-center gap-1 text-success text-xs font-bold"><i class="fas fa-check"></i> +3</span>' : '<span class="inline-flex items-center gap-1 text-danger/60 text-xs"><i class="fas fa-xmark"></i> 0</span>';
         rh = '<div class="mt-3 pt-3 border-t border-border flex items-center justify-between"><span class="text-xs text-muted">Resultado: <span class="font-display text-base font-bold text-txt">' + m.home_result + ' - ' + m.away_result + '</span></span>' + pb + '</div>';
       }
       h += '<div class="match-card' + (hr ? ' has-result' : '') + '"><div class="flex items-center justify-between mb-4"><span class="text-xs font-bold text-muted font-display tracking-wider">PARTIDO ' + String(m.id).padStart(2, '0') + '</span>' + (lk ? '<i class="fas fa-lock text-muted/30 text-xs"></i>' : '') + '</div><div class="flex items-center justify-between gap-3"><div class="flex-1 text-right"><p class="font-display text-base sm:text-lg font-semibold text-txt truncate">' + esc(m.home_team) + '</p></div><div class="flex items-center gap-2"><input type="number" min="0" max="99" class="goal-input" id="ph-' + m.id + '" value="' + ea(ph) + '" ' + (lk ? 'disabled' : '') + '><span class="text-muted text-xs font-bold">-</span><input type="number" min="0" max="99" class="goal-input" id="pa-' + m.id + '" value="' + ea(pa) + '" ' + (lk ? 'disabled' : '') + '></div><div class="flex-1"><p class="font-display text-base sm:text-lg font-semibold text-txt truncate">' + esc(m.away_team) + '</p></div></div>' + rh + '</div>';
     });
     h += '</div>';
-
-    // Resumen
     if (hasR) {
       var t = 0, ex = 0, ac = 0, fa = 0;
       MATCHES.forEach(function(m) { var p = cmpPts(predMap[m.id], m); t += p; if (p === 5) ex++; else if (p === 3) ac++; else if (predMap[m.id]) fa++; });
       var mx = MATCHES.length * 5, pc = Math.round((t / mx) * 100);
       h += '<div class="mt-6 bg-card border border-border rounded-xl p-5"><div class="flex items-center justify-between mb-3"><span class="font-display text-lg font-bold text-txt">Mi Rendimiento</span><span class="font-display text-2xl font-bold text-gold">' + t + '<span class="text-sm text-muted font-body font-normal"> / ' + mx + '</span></span></div><div class="pts-bar mb-3"><div class="pts-bar-fill" style="width:' + pc + '%"></div></div><div class="flex gap-6 text-sm"><span class="text-gold"><i class="fas fa-star mr-1"></i>' + ex + ' exactos</span><span class="text-success"><i class="fas fa-check mr-1"></i>' + ac + ' aciertos</span><span class="text-danger/60"><i class="fas fa-xmark mr-1"></i>' + fa + ' fallidos</span></div></div>';
     }
-
     c.innerHTML = h;
-  } catch (e) {
-    c.innerHTML = '<p class="text-danger text-center py-8">Error al cargar predicciones</p>';
-    console.error(e);
-  }
+  } catch (e) { c.innerHTML = '<p class="text-danger text-center py-8">Error al cargar</p>'; console.error(e); }
 }
 
 async function savePred() {
@@ -492,17 +468,13 @@ async function savePred() {
   });
   if (err) return;
   if (!any) { toast('Ingresa al menos un marcador', 'error'); return; }
-
   try {
-    // Borrar predicciones existentes de este jugador, luego insertar todas
     await sb.from('predictions').delete().eq('player_id', ME.id);
     var { error } = await sb.from('predictions').insert(rows);
     if (error) throw error;
     toast('Predicciones guardadas', 'success');
     rPred();
-  } catch (e) {
-    toast('Error al guardar: ' + e.message, 'error');
-  }
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
 }
 
 // ============================================================
@@ -511,44 +483,31 @@ async function savePred() {
 async function rSt() {
   var c = document.getElementById('standings-content');
   c.innerHTML = '<div class="text-center py-16"><span class="spinner"></span></div>';
-
   try {
     var { data: players } = await sb.from('players').select('*').order('name');
     var { data: preds } = await sb.from('predictions').select('*');
-    ALL_PLAYERS = players || [];
-    ALL_PREDICTIONS = preds || [];
-
+    ALL_PLAYERS = players || []; ALL_PREDICTIONS = preds || [];
     var mp = MATCHES.filter(function(m) { return m.home_result !== null; }).length;
     var mx = MATCHES.length * 5;
-
-    // Calcular puntos por jugador
     var results = ALL_PLAYERS.map(function(pl) {
-      var plPreds = ALL_PREDICTIONS.filter(function(p) { return p.player_id === pl.id; });
-      var predMap = {}; plPreds.forEach(function(p) { predMap[p.match_id] = p; });
+      var plP = ALL_PREDICTIONS.filter(function(p) { return p.player_id === pl.id; });
+      var pm2 = {}; plP.forEach(function(p) { pm2[p.match_id] = p; });
       var t = 0, ex = 0, ac = 0, fa = 0, pm = [];
-      MATCHES.forEach(function(m) {
-        var pts = cmpPts(predMap[m.id], m); t += pts; pm.push(pts);
-        if (pts === 5) ex++; else if (pts === 3) ac++; else if (predMap[m.id]) fa++;
-      });
+      MATCHES.forEach(function(m) { var pts = cmpPts(pm2[m.id], m); t += pts; pm.push(pts); if (pts === 5) ex++; else if (pts === 3) ac++; else if (pm2[m.id]) fa++; });
       return { name: pl.name, t: t, ex: ex, ac: ac, fa: fa, pm: pm };
     }).sort(function(a, b) { return b.t - a.t || b.ex - a.ex || b.ac - a.ac; });
-
     var n = results.length;
     var h = '<div class="flex flex-wrap items-end justify-between gap-3 mb-6"><div><h2 class="font-display text-2xl font-bold text-txt">Tabla de Posiciones</h2><p class="text-muted text-sm mt-0.5">' + n + ' jugadores' + (mp > 0 ? ' — ' + mp + '/' + MATCHES.length + ' jugados' : ' — Sin resultados') + '</p></div></div>';
-
     if (n > 0) {
       var ld = results[0], av = (results.reduce(function(s, p) { return s + p.t; }, 0) / n).toFixed(1);
       h += '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">';
-      h += kpi('fa-crown', 'Lider', ld.name, 'text-gold', 'bg-gold/8', 'border-gold/15');
-      h += kpi('fa-star', 'Max Puntos', ld.t, 'text-gold', 'bg-gold/8', 'border-gold/15');
-      h += kpi('fa-chart-line', 'Promedio', av, 'text-info', 'bg-info/8', 'border-info/15');
-      h += kpi('fa-futbol', 'Jugados', mp + '/' + MATCHES.length, 'text-success', 'bg-success/8', 'border-success/15');
+      h += kpiC('fa-crown', 'Lider', ld.name, 'text-gold', 'bg-gold/8', 'border-gold/15');
+      h += kpiC('fa-star', 'Max Puntos', ld.t, 'text-gold', 'bg-gold/8', 'border-gold/15');
+      h += kpiC('fa-chart-line', 'Promedio', av, 'text-info', 'bg-info/8', 'border-info/15');
+      h += kpiC('fa-futbol', 'Jugados', mp + '/' + MATCHES.length, 'text-success', 'bg-success/8', 'border-success/15');
       h += '</div>';
     }
-
     if (n === 0) { h += '<div class="text-center py-16 text-muted"><i class="fas fa-users text-4xl mb-4 opacity-30"></i><p>Sin jugadores</p></div>'; c.innerHTML = h; return; }
-
-    // Tabla
     h += '<div class="bg-card border border-border rounded-xl overflow-hidden mb-6"><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="border-b border-border text-left"><th class="px-4 py-3 text-muted font-semibold text-xs w-12">#</th><th class="px-4 py-3 text-muted font-semibold text-xs">Jugador</th><th class="px-4 py-3 text-muted font-semibold text-xs text-center">PTS</th><th class="px-4 py-3 text-muted font-semibold text-xs text-center hidden sm:table-cell"><i class="fas fa-star text-gold/50"></i></th><th class="px-4 py-3 text-muted font-semibold text-xs text-center hidden sm:table-cell"><i class="fas fa-check text-success/50"></i></th><th class="px-4 py-3 text-muted font-semibold text-xs text-center hidden md:table-cell"><i class="fas fa-xmark text-danger/40"></i></th><th class="px-4 py-3 text-muted font-semibold text-xs hidden lg:table-cell" style="min-width:120px">Progreso</th></tr></thead><tbody>';
     results.forEach(function(p, i) {
       var rk = i + 1, pc = mx > 0 ? Math.round((p.t / mx) * 100) : 0, md = '';
@@ -560,8 +519,6 @@ async function rSt() {
       h += '<tr class="border-b border-border/50 hover:bg-white/[0.02]' + (me ? ' bg-gold/[0.04]' : '') + '"><td class="px-4 py-3 text-center">' + md + '</td><td class="px-4 py-3 font-semibold' + (me ? ' text-gold' : ' text-txt') + '">' + esc(p.name) + (me ? ' <span class="text-xs text-gold/50 font-normal">(tu)</span>' : '') + '</td><td class="px-4 py-3 text-center"><span class="font-display text-xl font-bold text-txt">' + p.t + '</span></td><td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-gold font-semibold">' + p.ex + '</span></td><td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-success font-semibold">' + p.ac + '</span></td><td class="px-4 py-3 text-center hidden md:table-cell"><span class="text-danger/50">' + p.fa + '</span></td><td class="px-4 py-3 hidden lg:table-cell"><div class="pts-bar"><div class="pts-bar-fill" style="width:' + pc + '%"></div></div></td></tr>';
     });
     h += '</tbody></table></div></div>';
-
-    // Matriz
     if (mp > 0) {
       h += '<div class="bg-card border border-border rounded-xl p-4 sm:p-5 overflow-x-auto"><h3 class="font-display text-lg font-bold text-txt mb-4">Matriz de Puntos</h3><table class="w-full text-xs"><thead><tr class="border-b border-border"><th class="px-2 py-2 text-left text-muted font-semibold min-w-[100px]">Jugador</th>';
       MATCHES.forEach(function(m) { h += '<th class="px-1 py-2 text-center text-muted font-semibold w-9">P' + m.id + '</th>'; });
@@ -572,17 +529,13 @@ async function rSt() {
         p.pm.forEach(function(pts) { var cl = pts === 5 ? 'pts-5' : pts === 3 ? 'pts-3' : 'pts-0'; h += '<td class="px-1 py-1.5 text-center"><div class="matrix-cell ' + cl + ' mx-auto">' + pts + '</div></td>'; });
         h += '<td class="px-2 py-1.5 text-center font-display font-bold text-lg text-txt">' + p.t + '</td></tr>';
       });
-      h += '</tbody></table></div>';
-      h += '<div class="flex gap-5 mt-3 text-xs text-muted"><span><span class="matrix-cell pts-5 inline-flex w-5 h-5 text-[10px] mr-1">5</span> Exacto</span><span><span class="matrix-cell pts-3 inline-flex w-5 h-5 text-[10px] mr-1">3</span> Resultado</span><span><span class="matrix-cell pts-0 inline-flex w-5 h-5 text-[10px] mr-1">0</span> Fallido</span></div>';
+      h += '</tbody></table></div><div class="flex gap-5 mt-3 text-xs text-muted"><span><span class="matrix-cell pts-5 inline-flex w-5 h-5 text-[10px] mr-1">5</span> Exacto</span><span><span class="matrix-cell pts-3 inline-flex w-5 h-5 text-[10px] mr-1">3</span> Resultado</span><span><span class="matrix-cell pts-0 inline-flex w-5 h-5 text-[10px] mr-1">0</span> Fallido</span></div>';
     }
     c.innerHTML = h;
-  } catch (e) {
-    c.innerHTML = '<p class="text-danger text-center py-8">Error al cargar clasificacion</p>';
-    console.error(e);
-  }
+  } catch (e) { c.innerHTML = '<p class="text-danger text-center py-8">Error al cargar</p>'; console.error(e); }
 }
 
-function kpi(ic, lb, vl, tc, bc, bd) { return '<div class="' + bc + ' border ' + bd + ' rounded-xl p-4"><div class="flex items-center gap-2 mb-2"><i class="fas ' + ic + ' ' + tc + ' text-sm"></i><span class="text-muted text-xs font-medium">' + lb + '</span></div><p class="font-display text-xl font-bold ' + tc + ' truncate">' + esc(String(vl)) + '</p></div>'; }
+function kpiC(ic, lb, vl, tc, bc, bd) { return '<div class="' + bc + ' border ' + bd + ' rounded-xl p-4"><div class="flex items-center gap-2 mb-2"><i class="fas ' + ic + ' ' + tc + ' text-sm"></i><span class="text-muted text-xs font-medium">' + lb + '</span></div><p class="font-display text-xl font-bold ' + tc + ' truncate">' + esc(String(vl)) + '</p></div>'; }
 
 // ============================================================
 // RENDER: DETALLE POR PARTIDO
@@ -590,55 +543,32 @@ function kpi(ic, lb, vl, tc, bc, bd) { return '<div class="' + bc + ' border ' +
 async function rDet() {
   var c = document.getElementById('details-content');
   c.innerHTML = '<div class="text-center py-16"><span class="spinner"></span></div>';
-
   try {
-    if (!ALL_PLAYERS.length) {
-      var { data: pls } = await sb.from('players').select('*').order('name');
-      ALL_PLAYERS = pls || [];
-    }
-    if (!ALL_PREDICTIONS.length) {
-      var { data: prds } = await sb.from('predictions').select('*');
-      ALL_PREDICTIONS = prds || [];
-    }
-
-    var h = '<div class="mb-6"><h2 class="font-display text-2xl font-bold text-txt">Detalle por Partido</h2><p class="text-muted text-sm mt-0.5">Comparacion de predicciones</p></div>';
-    h += '<div class="flex gap-2 mb-6 overflow-x-auto pb-2">';
+    if (!ALL_PLAYERS.length) { var r1 = await sb.from('players').select('*').order('name'); ALL_PLAYERS = r1.data || []; }
+    if (!ALL_PREDICTIONS.length) { var r2 = await sb.from('predictions').select('*'); ALL_PREDICTIONS = r2.data || []; }
+    var h = '<div class="mb-6"><h2 class="font-display text-2xl font-bold text-txt">Detalle por Partido</h2><p class="text-muted text-sm mt-0.5">Comparacion de predicciones</p></div><div class="flex gap-2 mb-6 overflow-x-auto pb-2">';
     MATCHES.forEach(function(m) { var ac = m.id === DET_MATCH; h += '<button onclick="DET_MATCH=' + m.id + ';rDet()" class="flex-shrink-0 px-4 py-2 rounded-lg text-xs font-bold font-display tracking-wider transition-all ' + (ac ? 'bg-gold/15 text-gold border border-gold/30' : 'bg-card border border-border text-muted hover:text-txt hover:border-gold/20') + '">P' + String(m.id).padStart(2, '0') + '</button>'; });
     h += '</div>';
-
     var m = MATCHES.find(function(x) { return x.id === DET_MATCH; });
     if (!m) { c.innerHTML = h; return; }
     var hasR = m.home_result !== null && m.away_result !== null;
     h += '<div class="bg-card border border-border rounded-xl p-5 mb-6"><div class="flex items-center justify-between gap-4"><div class="flex-1 text-right"><p class="font-display text-xl sm:text-2xl font-bold text-txt">' + esc(m.home_team) + '</p></div><div class="text-center"><p class="font-display text-3xl font-bold text-muted">VS</p>' + (hasR ? '<p class="font-display text-lg font-bold text-success mt-1">' + m.home_result + ' - ' + m.away_result + '</p>' : '<p class="text-xs text-muted mt-1">Sin resultado</p>') + '</div><div class="flex-1"><p class="font-display text-xl sm:text-2xl font-bold text-txt">' + esc(m.away_team) + '</p></div></div></div>';
-
-    if (!ALL_PLAYERS.length) {
-      h += '<div class="text-center py-12 text-muted"><i class="fas fa-users text-3xl mb-3 opacity-30"></i><p>Sin jugadores</p></div>';
-    } else {
-      var mpl = ALL_PLAYERS.map(function(pl) {
-        var pr = ALL_PREDICTIONS.find(function(p) { return p.player_id === pl.id && p.match_id === m.id; });
-        return { nm: pl.name, pr: pr, pts: cmpPts(pr, m) };
-      }).sort(function(a, b) { return b.pts - a.pts; });
-
+    if (!ALL_PLAYERS.length) { h += '<div class="text-center py-12 text-muted"><i class="fas fa-users text-3xl mb-3 opacity-30"></i><p>Sin jugadores</p></div>'; }
+    else {
+      var mpl = ALL_PLAYERS.map(function(pl) { var pr = ALL_PREDICTIONS.find(function(p) { return p.player_id === pl.id && p.match_id === m.id; }); return { nm: pl.name, pr: pr, pts: cmpPts(pr, m) }; }).sort(function(a, b) { return b.pts - a.pts; });
       h += '<div class="bg-card border border-border rounded-xl overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="border-b border-border"><th class="px-4 py-3 text-left text-muted font-semibold text-xs w-12">#</th><th class="px-4 py-3 text-left text-muted font-semibold text-xs">Jugador</th><th class="px-4 py-3 text-center text-muted font-semibold text-xs">Prediccion</th>' + (hasR ? '<th class="px-4 py-3 text-center text-muted font-semibold text-xs">Pts</th><th class="px-4 py-3 text-center text-muted font-semibold text-xs">Estado</th>' : '') + '</tr></thead><tbody>';
       mpl.forEach(function(mp, i) {
         var me = mp.nm === ME.name;
         var pt = mp.pr ? (mp.pr.home_goals + ' - ' + mp.pr.away_goals) : 'Sin prediccion';
         var ph = hasR ? '<td class="px-4 py-3 text-center font-display font-bold text-lg ' + (mp.pts === 5 ? 'text-gold' : mp.pts === 3 ? 'text-success' : 'text-muted/40') + '">' + mp.pts + '</td>' : '';
         var sh = '';
-        if (hasR) {
-          if (mp.pts === 5) sh = '<td class="px-4 py-3 text-center"><span class="inline-flex items-center gap-1 text-gold text-xs font-bold"><i class="fas fa-star"></i> Exacto</span></td>';
-          else if (mp.pts === 3) sh = '<td class="px-4 py-3 text-center"><span class="inline-flex items-center gap-1 text-success text-xs font-bold"><i class="fas fa-check"></i> Acierto</span></td>';
-          else sh = '<td class="px-4 py-3 text-center"><span class="inline-flex items-center gap-1 text-danger/40 text-xs"><i class="fas fa-xmark"></i> Fallido</span></td>';
-        }
+        if (hasR) { if (mp.pts === 5) sh = '<td class="px-4 py-3 text-center"><span class="inline-flex items-center gap-1 text-gold text-xs font-bold"><i class="fas fa-star"></i> Exacto</span></td>'; else if (mp.pts === 3) sh = '<td class="px-4 py-3 text-center"><span class="inline-flex items-center gap-1 text-success text-xs font-bold"><i class="fas fa-check"></i> Acierto</span></td>'; else sh = '<td class="px-4 py-3 text-center"><span class="inline-flex items-center gap-1 text-danger/40 text-xs"><i class="fas fa-xmark"></i> Fallido</span></td>'; }
         h += '<tr class="border-b border-border/30' + (me ? ' bg-gold/[0.04]' : '') + '"><td class="px-4 py-3 text-center text-muted">' + (i + 1) + '</td><td class="px-4 py-3 font-semibold' + (me ? ' text-gold' : ' text-txt') + '">' + esc(mp.nm) + (me ? ' <span class="text-xs text-gold/50 font-normal">(tu)</span>' : '') + '</td><td class="px-4 py-3 text-center font-display text-base font-semibold text-txt">' + pt + '</td>' + ph + sh + '</tr>';
       });
       h += '</tbody></table></div></div>';
     }
     c.innerHTML = h;
-  } catch (e) {
-    c.innerHTML = '<p class="text-danger text-center py-8">Error al cargar detalle</p>';
-    console.error(e);
-  }
+  } catch (e) { c.innerHTML = '<p class="text-danger text-center py-8">Error</p>'; console.error(e); }
 }
 
 // ============================================================
@@ -647,22 +577,19 @@ async function rDet() {
 async function rAdm() {
   var c = document.getElementById('admin-content');
   if (!IS_ADMIN) { c.innerHTML = '<div class="text-center py-16 text-muted"><i class="fas fa-lock text-4xl mb-4 opacity-30"></i><p>No autorizado</p></div>'; return; }
-
   var h = '<div class="mb-6"><h2 class="font-display text-2xl font-bold text-txt">Administracion</h2><p class="text-muted text-sm mt-0.5">Gestiona equipos, resultados y configuracion</p></div>';
   var tabs = [{ id: 'matches', l: 'Equipos', i: 'fa-shield-halved' }, { id: 'results', l: 'Resultados', i: 'fa-clipboard-check' }, { id: 'control', l: 'Control', i: 'fa-sliders' }];
   h += '<div class="flex gap-2 mb-6">';
   tabs.forEach(function(t) { h += '<button onclick="ADM_TAB=\'' + t.id + '\';rAdm()" class="admin-tab' + (ADM_TAB === t.id ? ' active' : '') + '"><i class="fas ' + t.i + ' mr-1"></i>' + t.l + '</button>'; });
   h += '</div>';
-
   if (ADM_TAB === 'matches') h += rAdmM();
   else if (ADM_TAB === 'results') h += rAdmR();
   else h += await rAdmC();
-
   c.innerHTML = h;
 }
 
 function rAdmM() {
-  var h = '<div class="bg-card border border-border rounded-xl p-5 mb-4"><h3 class="font-display text-lg font-bold text-txt mb-1">Editar Equipos</h3><p class="text-muted text-xs mb-5">Nombres de equipos para octavos de final</p>';
+  var h = '<div class="bg-card border border-border rounded-xl p-5 mb-4"><h3 class="font-display text-lg font-bold text-txt mb-1">Editar Equipos</h3><p class="text-muted text-xs mb-5">Nombres de equipos para octavos</p>';
   MATCHES.forEach(function(m) {
     h += '<div class="mb-5 pb-5 border-b border-border/50 last:border-0 last:mb-0 last:pb-0"><span class="text-xs font-bold text-muted font-display tracking-wider">PARTIDO ' + String(m.id).padStart(2, '0') + '</span><div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2"><div><label class="text-xs text-muted mb-1 block">Local</label><input type="text" maxlength="30" value="' + ea(m.home_team) + '" id="et-h-' + m.id + '" class="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-txt outline-none focus:border-gold transition-all"></div><div><label class="text-xs text-muted mb-1 block">Visitante</label><input type="text" maxlength="30" value="' + ea(m.away_team) + '" id="et-a-' + m.id + '" class="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-txt outline-none focus:border-gold transition-all"></div></div></div>';
   });
@@ -671,7 +598,7 @@ function rAdmM() {
 }
 
 function rAdmR() {
-  var h = '<div class="bg-card border border-border rounded-xl p-5 mb-4"><h3 class="font-display text-lg font-bold text-txt mb-1">Ingresar Resultados</h3><p class="text-muted text-xs mb-5">Marcadores reales de cada partido</p>';
+  var h = '<div class="bg-card border border-border rounded-xl p-5 mb-4"><h3 class="font-display text-lg font-bold text-txt mb-1">Ingresar Resultados</h3><p class="text-muted text-xs mb-5">Marcadores reales</p>';
   MATCHES.forEach(function(m) {
     var hr = m.home_result !== null && m.away_result !== null;
     h += '<div class="mb-5 pb-5 border-b border-border/50 last:border-0 last:mb-0 last:pb-0"><div class="flex flex-wrap items-center justify-between gap-2 mb-2"><span class="text-xs font-bold text-muted font-display tracking-wider">PARTIDO ' + String(m.id).padStart(2, '0') + '</span>' + (hr ? '<button onclick="clrR(' + m.id + ')" class="text-xs text-danger/60 hover:text-danger transition-colors cursor-pointer bg-transparent border-none font-body"><i class="fas fa-eraser mr-1"></i>Limpiar</button>' : '') + '</div><div class="flex items-center gap-2 mb-2"><span class="flex-1 text-sm font-semibold text-txt truncate text-right">' + esc(m.home_team) + '</span><input type="number" min="0" max="99" class="goal-input result-input" id="rh-' + m.id + '" value="' + (hr ? m.home_result : '') + '" placeholder="-"><span class="text-muted text-xs font-bold">-</span><input type="number" min="0" max="99" class="goal-input result-input" id="ra-' + m.id + '" value="' + (hr ? m.away_result : '') + '" placeholder="-"><span class="flex-1 text-sm font-semibold text-txt truncate">' + esc(m.away_team) + '</span></div></div>';
@@ -682,29 +609,16 @@ function rAdmR() {
 
 async function rAdmC() {
   var { data: pls } = await sb.from('players').select('*').order('name');
-  var ns = pls || [];
-  var lk = SETS.locked;
+  var ns = pls || []; var lk = SETS.locked;
   var h = '<div class="space-y-4">';
-
-  h += '<div class="bg-card border border-border rounded-xl p-5"><h3 class="font-display text-lg font-bold text-txt mb-4">Bloqueo de Predicciones</h3><div class="flex items-center justify-between"><div><p class="text-sm text-txt">Estado actual</p><p class="text-xs text-muted mt-0.5">' + (lk ? 'Cerrado' : 'Abierto') + '</p></div><div class="toggle-switch' + (lk ? ' on' : '') + '" onclick="tglLk()" role="switch" tabindex="0"></div></div></div>';
-
+  h += '<div class="bg-card border border-border rounded-xl p-5"><h3 class="font-display text-lg font-bold text-txt mb-4">Bloqueo de Predicciones</h3><div class="flex items-center justify-between"><div><p class="text-sm text-txt">' + (lk ? 'Cerrado' : 'Abierto') + '</p></div><div class="toggle-switch' + (lk ? ' on' : '') + '" onclick="tglLk()" role="switch" tabindex="0"></div></div></div>';
   h += '<div class="bg-card border border-border rounded-xl p-5"><h3 class="font-display text-lg font-bold text-txt mb-4">Cambiar PIN Admin</h3><div class="flex gap-3 items-end"><div class="flex-1"><label class="text-xs text-muted mb-1 block">Nuevo PIN Admin</label><input type="password" id="npin" maxlength="20" placeholder="Nuevo PIN" class="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-txt outline-none focus:border-gold transition-all" autocomplete="off"></div><button onclick="chgPin()" class="btn-outline text-sm">Cambiar</button></div></div>';
-
   h += '<div class="bg-card border border-border rounded-xl p-5"><h3 class="font-display text-lg font-bold text-txt mb-1">Jugadores (' + ns.length + ')</h3><p class="text-muted text-xs mb-4">de ~10 esperados</p>';
   if (!ns.length) h += '<p class="text-muted text-sm">Sin jugadores</p>';
-  else {
-    h += '<div class="space-y-2">';
-    ns.forEach(function(pl) {
-      h += '<div class="flex items-center justify-between py-2 px-3 rounded-lg bg-surface/50"><div class="flex items-center gap-3"><div class="w-7 h-7 rounded-full bg-gold/10 flex items-center justify-center"><i class="fas fa-user text-gold text-xs"></i></div><div><p class="text-sm font-semibold text-txt">' + esc(pl.name) + '</p><p class="text-xs text-muted">' + new Date(pl.created_at).toLocaleString('es') + '</p></div></div></div>';
-    });
-    h += '</div>';
-  }
+  else { h += '<div class="space-y-2">'; ns.forEach(function(pl) { h += '<div class="flex items-center justify-between py-2 px-3 rounded-lg bg-surface/50"><div class="flex items-center gap-3"><div class="w-7 h-7 rounded-full bg-gold/10 flex items-center justify-center"><i class="fas fa-user text-gold text-xs"></i></div><div><p class="text-sm font-semibold text-txt">' + esc(pl.name) + '</p><p class="text-xs text-muted">' + new Date(pl.created_at).toLocaleString('es') + '</p></div></div></div>'; }); h += '</div>'; }
   h += '</div>';
-
   h += '<div class="bg-card border border-danger/20 rounded-xl p-5"><h3 class="font-display text-lg font-bold text-danger mb-1">Zona Peligrosa</h3><p class="text-muted text-xs mb-4">Acciones irreversibles</p><div class="flex flex-wrap gap-3"><button onclick="cfmRR()" class="btn-danger text-sm"><i class="fas fa-eraser mr-1"></i>Borrar Resultados</button><button onclick="cfmRP()" class="btn-danger text-sm"><i class="fas fa-broom mr-1"></i>Borrar Predicciones</button></div></div>';
-
-  h += '</div>';
-  return h;
+  h += '</div>'; return h;
 }
 
 // ============================================================
@@ -718,11 +632,8 @@ async function saveTeams() {
       var at = document.getElementById('et-a-' + m.id).value.trim();
       await sb.from('matches').update({ home_team: ht, away_team: at }).eq('id', m.id);
     }
-    // Refrescar datos
-    var { data } = await sb.from('matches').select('*').order('id');
-    MATCHES = data;
-    toast('Equipos actualizados', 'success');
-    rAdm();
+    var { data } = await sb.from('matches').select('*').order('id'); MATCHES = data;
+    toast('Equipos actualizados', 'success'); rAdm();
   } catch (e) { toast('Error: ' + e.message, 'error'); }
 }
 
@@ -732,81 +643,54 @@ async function saveResults() {
       var m = MATCHES[i];
       var hi = document.getElementById('rh-' + m.id), ai = document.getElementById('ra-' + m.id);
       var hv = hi.value.trim(), av = ai.value.trim();
-      if (hv === '' && av === '') {
-        await sb.from('matches').update({ home_result: null, away_result: null }).eq('id', m.id);
-      } else if (hv !== '' && av !== '') {
-        await sb.from('matches').update({ home_result: parseInt(hv), away_result: parseInt(av) }).eq('id', m.id);
-      } else {
-        toast('Completa Partido ' + m.id, 'error'); return;
-      }
+      if (hv === '' && av === '') await sb.from('matches').update({ home_result: null, away_result: null }).eq('id', m.id);
+      else if (hv !== '' && av !== '') await sb.from('matches').update({ home_result: parseInt(hv), away_result: parseInt(av) }).eq('id', m.id);
+      else { toast('Completa Partido ' + m.id, 'error'); return; }
     }
-    var { data } = await sb.from('matches').select('*').order('id');
-    MATCHES = data;
-    ALL_PREDICTIONS = []; // Limpiar cache
-    toast('Resultados guardados', 'success');
-    rAdm();
+    var { data } = await sb.from('matches').select('*').order('id'); MATCHES = data; ALL_PREDICTIONS = [];
+    toast('Resultados guardados', 'success'); rAdm();
   } catch (e) { toast('Error: ' + e.message, 'error'); }
 }
 
 async function clrR(id) {
   await sb.from('matches').update({ home_result: null, away_result: null }).eq('id', id);
-  var { data } = await sb.from('matches').select('*').order('id');
-  MATCHES = data;
-  ALL_PREDICTIONS = [];
-  toast('Resultado P' + id + ' eliminado', 'info');
-  rAdm();
+  var { data } = await sb.from('matches').select('*').order('id'); MATCHES = data; ALL_PREDICTIONS = [];
+  toast('Resultado P' + id + ' eliminado', 'info'); rAdm();
 }
 
 async function tglLk() {
-  var newLock = !SETS.locked;
-  await sb.from('settings').update({ locked: newLock }).eq('id', 1);
-  SETS.locked = newLock;
-  toast(newLock ? 'Cerrado' : 'Abierto', newLock ? 'error' : 'success');
-  rAdm();
+  var nl = !SETS.locked;
+  await sb.from('settings').update({ locked: nl }).eq('id', 1); SETS.locked = nl;
+  toast(nl ? 'Cerrado' : 'Abierto', nl ? 'error' : 'success'); rAdm();
 }
 
 async function chgPin() {
   var inp = document.getElementById('npin'), np = inp.value.trim();
   if (!np || np.length < 3) { toast('PIN minimo 3 caracteres', 'error'); return; }
-  var hash = await hashSha256(np);
+  var hash = await sha256(np);
   await sb.from('settings').update({ admin_pin_hash: hash }).eq('id', 1);
-  SETS.admin_pin_hash = hash;
-  inp.value = '';
-  toast('PIN admin cambiado', 'success');
+  SETS.admin_pin_hash = hash; inp.value = ''; toast('PIN admin cambiado', 'success');
 }
 
 function cfmRR() { showCf('Borrar Resultados', 'Se eliminaran todos los resultados reales.', async function() { await sb.from('matches').update({ home_result: null, away_result: null }); var { data } = await sb.from('matches').select('*').order('id'); MATCHES = data; ALL_PREDICTIONS = []; toast('Resultados borrados', 'info'); rAdm(); }); }
-function cfmRP() { showCf('Borrar Predicciones', 'Se eliminaran TODAS las predicciones de TODOS los jugadores.', async function() { await sb.from('predictions').delete().neq('id', '00000000-0000-0000-0000-000000000000'); ALL_PREDICTIONS = []; toast('Predicciones borradas', 'info'); rAdm(); }); }
+function cfmRP() { showCf('Borrar Predicciones', 'Se eliminaran TODAS las predicciones.', async function() { await sb.from('predictions').delete().neq('id', '00000000-0000-0000-0000-000000000000'); ALL_PREDICTIONS = []; toast('Predicciones borradas', 'info'); rAdm(); }); }
 
 // ============================================================
-// ADMIN PIN MODAL (verificación cliente contra hash en DB)
+// ADMIN PIN MODAL
 // ============================================================
-function openPinModal() {
-  document.getElementById('admin-pin-input').value = '';
-  document.getElementById('modal-pin').classList.add('active');
-  setTimeout(function() { document.getElementById('admin-pin-input').focus(); }, 100);
-}
+function openPinModal() { document.getElementById('admin-pin-input').value = ''; document.getElementById('modal-pin').classList.add('active'); setTimeout(function() { document.getElementById('admin-pin-input').focus(); }, 100); }
 function closePinModal() { document.getElementById('modal-pin').classList.remove('active'); }
 
 async function verifyAdminPin() {
   var pin = document.getElementById('admin-pin-input').value.trim();
   if (!pin) { toast('Ingresa el PIN', 'error'); return; }
-  var hash = await hashSha256(pin);
+  var hash = await sha256(pin);
   if (hash === SETS.admin_pin_hash) {
-    IS_ADMIN = true;
-    closePinModal();
-    toast('Admin activado', 'success');
-    navTo('admin');
+    IS_ADMIN = true; closePinModal(); toast('Admin activado', 'success'); navTo('admin');
   } else {
-    toast('PIN incorrecto', 'error');
-    document.getElementById('admin-pin-input').value = '';
+    toast('PIN incorrecto', 'error'); document.getElementById('admin-pin-input').value = '';
     document.getElementById('admin-pin-input').focus();
   }
-}
-
-async function hashSha256(str) {
-  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
 }
 
 // ============================================================
@@ -828,9 +712,6 @@ function toast(msg, type) {
   setTimeout(function() { t.classList.remove('show'); setTimeout(function() { t.remove(); }, 300); }, 3000);
 }
 
-// ============================================================
-// UTILIDADES
-// ============================================================
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function ea(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
@@ -844,7 +725,6 @@ document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { clo
 document.getElementById('modal-pin').addEventListener('click', function(e) { if (e.target === this) closePinModal(); });
 document.getElementById('modal-confirm').addEventListener('click', function(e) { if (e.target === this) closeConfirmModal(); });
 
-// Service Worker
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(function() {}); }
 
 // ============================================================
