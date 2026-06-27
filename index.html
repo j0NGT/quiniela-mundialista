@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Quiniela Mundialista</title>
+<meta name="description" content="Predice los marcadores de los octavos de final del Mundial FIFA">
+<meta name="theme-color" content="#080c14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ============================================================
+// CONFIGURACION - REEMPLAZA TU_ANON_KEY_AQUI
+// ============================================================
+var SB_URL = 'https://xorknuzclwwxtyelwypx.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhvcmtudXpjbHd3eHR5ZWx3eXB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NzcwNjAsImV4cCI6MjA5ODE1MzA2MH0.RmNPehSveuEcqIlBceaz6iX-h9egdHX7z70rvp2z8is';
+
+tailwind.config={theme:{extend:{colors:{bg:'#080c14',surface:'#0d1320',card:'#111a2e',border:'#1a2744',gold:'#d4a537',goldlight:'#f0d078',success:'#10b981',danger:'#ef4444',info:'#3b82f6',txt:'#e2e8f0',muted:'#5a6a8a'},fontFamily:{display:['Oswald','sans-serif'],body:['DM Sans','sans-serif']}}}}
+</script>
+<style>
+:root{--gold:#d4a537;--gold-light:#f0d078;--bg:#080c14;--surface:#0d1320;--card:#111a2e;--border:#1a2744;--success:#10b981;--danger:#ef4444}
+*{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:#e2e8f0;min-height:100dvh;overflow-x:hidden}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#1a2744;border-radius:3px}
+.bg-blob{position:fixed;border-radius:50%;filter:blur(130px);pointer-events:none;z-index:0}
+.blob-1{width:500px;height:500px;background:radial-gradient(circle,rgba(212,165,55,.12),transparent 70%);top:-10%;left:-5%;animation:bf1 25s ease-in-out infinite}
+.blob-2{width:400px;height:400px;background:radial-gradient(circle,rgba(16,185,129,.08),transparent 70%);bottom:-10%;right:-5%;animation:bf2 30s ease-in-out infinite}
+.blob-3{width:300px;height:300px;background:radial-gradient(circle,rgba(212,165,55,.06),transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);animation:bf3 20s ease-in-out infinite}
+@keyframes bf1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(60px,40px) scale(1.1)}66%{transform:translate(-30px,80px) scale(.95)}}
+@keyframes bf2{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(-50px,-30px) scale(1.05)}66%{transform:translate(40px,-60px) scale(.9)}}
+@keyframes bf3{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.2)}}
+.screen{display:none}.screen.active{display:block;animation:fsi .35s ease-out}
+@keyframes fsi{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes si{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+@keyframes pg{0%,100%{box-shadow:0 0 0 0 rgba(212,165,55,.3)}50%{box-shadow:0 0 20px 4px rgba(212,165,55,.15)}}
+@keyframes sd{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+#sidebar{position:fixed;left:0;top:0;bottom:0;width:240px;background:#0a1020;border-right:1px solid var(--border);z-index:40;display:flex;flex-direction:column}
+#sidebar .nav-item{display:flex;align-items:center;gap:12px;padding:12px 20px;color:#5a6a8a;cursor:pointer;transition:all .2s;border-left:3px solid transparent;font-size:14px;font-weight:500}
+#sidebar .nav-item:hover{color:#c0c8d8;background:rgba(255,255,255,.02)}
+#sidebar .nav-item.active{color:var(--gold);background:rgba(212,165,55,.06);border-left-color:var(--gold)}
+#sidebar .nav-item i{width:20px;text-align:center;font-size:15px}
+#bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#0a1020;border-top:1px solid var(--border);z-index:40;display:none}
+#bottom-nav .bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 4px 6px;color:#5a6a8a;font-size:10px;font-weight:500;cursor:pointer;transition:color .2s;gap:3px}
+#bottom-nav .bnav-item i{font-size:18px}
+#bottom-nav .bnav-item.active{color:var(--gold)}
+#content{margin-left:240px;min-height:100dvh;padding:24px 28px;position:relative;z-index:1}
+.goal-input{width:52px;height:44px;background:#0a1020;border:1.5px solid var(--border);border-radius:8px;color:#fff;font-family:'Oswald',sans-serif;font-size:22px;text-align:center;outline:none;transition:all .2s;-moz-appearance:textfield}
+.goal-input::-webkit-outer-spin-button,.goal-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.goal-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,165,55,.15)}
+.goal-input:disabled{opacity:.4;cursor:not-allowed}
+.goal-input.result-input{border-color:rgba(16,185,129,.3)}
+.goal-input.result-input:focus{border-color:var(--success);box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+#toast-container{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:10px;font-size:14px;font-weight:500;display:flex;align-items:center;gap:10px;transform:translateX(120%);transition:transform .3s ease;backdrop-filter:blur(12px);min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.toast.show{transform:translateX(0)}
+.toast-success{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);color:#6ee7b7}
+.toast-error{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#fca5a5}
+.toast-info{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);color:#93c5fd}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.active{display:flex}
+.modal-box{background:#111a2e;border:1px solid var(--border);border-radius:16px;padding:28px;max-width:420px;width:100%;animation:si .25s ease-out}
+.match-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;transition:all .25s}
+.match-card:hover{border-color:#253558;background:#142040}
+.match-card.has-result{border-color:rgba(16,185,129,.2)}
+.matrix-cell{width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-size:15px;font-weight:600}
+.matrix-cell.pts-5{background:rgba(212,165,55,.2);color:var(--gold)}
+.matrix-cell.pts-3{background:rgba(16,185,129,.15);color:#6ee7b7}
+.matrix-cell.pts-0{background:rgba(90,106,138,.1);color:#3a4a6a}
+.pts-bar{height:6px;border-radius:3px;background:#1a2744;overflow:hidden}
+.pts-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold),var(--gold-light));transition:width .8s ease}
+.btn-gold{background:linear-gradient(135deg,#d4a537,#c09520);color:#080c14;font-weight:700;border:none;border-radius:10px;padding:12px 28px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;font-size:15px}
+.btn-gold:hover{background:linear-gradient(135deg,#f0d078,#d4a537);transform:translateY(-1px);box-shadow:0 4px 20px rgba(212,165,55,.3)}
+.btn-gold:active{transform:translateY(0)}.btn-gold:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-outline{background:transparent;color:#c0c8d8;border:1.5px solid var(--border);border-radius:10px;padding:10px 20px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500}
+.btn-outline:hover{border-color:#3a4a6a;background:rgba(255,255,255,.03)}
+.btn-danger{background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:10px 20px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500}
+.btn-danger:hover{background:rgba(239,68,68,.2)}
+.toggle-switch{position:relative;width:48px;height:26px;background:#1a2744;border-radius:13px;cursor:pointer;transition:background .3s}
+.toggle-switch.on{background:var(--gold)}
+.toggle-switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .3s}
+.toggle-switch.on::after{transform:translateX(22px)}
+.medal{font-size:18px}.medal-gold{color:#ffd700}.medal-silver{color:#c0c0c0}.medal-bronze{color:#cd7f32}
+.status-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.status-open{background:rgba(16,185,129,.12);color:#6ee7b7}
+.status-locked{background:rgba(239,68,68,.12);color:#fca5a5}
+.login-card{position:relative;overflow:hidden}
+.login-card::before{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 40%,rgba(212,165,55,.04) 45%,rgba(212,165,55,.08) 50%,rgba(212,165,55,.04) 55%,transparent 60%);animation:shimmer 4s ease-in-out infinite}
+@keyframes shimmer{0%,100%{transform:translateX(-100%)}50%{transform:translateX(100%)}}
+.admin-tab{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;color:#5a6a8a}
+.admin-tab:hover{color:#c0c8d8}.admin-tab.active{background:rgba(212,165,55,.1);color:var(--gold)}
+.spinner{width:24px;height:24px;border:3px solid #1a2744;border-top-color:var(--gold);border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
+@media(max-width:768px){#sidebar{display:none}#bottom-nav{display:flex}#content{margin-left:0;padding:16px 14px 90px}.goal-input{width:46px;height:40px;font-size:20px}.match-card{padding:14px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<div class="bg-blob blob-1"></div>
+<div class="bg-blob blob-2"></div>
+<div class="bg-blob blob-3"></div>
+
+<!-- PANTALLA PIN -->
+<div id="screen-pin" class="screen active">
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="login-card bg-card border border-border rounded-2xl p-8 sm:p-10 w-full max-w-md relative" style="animation:si .5s ease-out">
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full border-2 border-gold/30 mb-5" style="animation:pg 3s ease-in-out infinite">
+          <i class="fas fa-lock text-gold text-3xl"></i>
+        </div>
+        <h1 class="font-display text-3xl sm:text-4xl font-bold text-gold tracking-wide">ACCESO RESTRINGIDO</h1>
+        <p class="text-muted text-sm mt-2">Ingresa el PIN para acceder a la quiniela</p>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-muted mb-2" for="pin-entry">PIN de acceso</label>
+          <input id="pin-entry" type="password" maxlength="20" placeholder="PIN..."
+            class="w-full bg-surface border border-border px-4 py-3 text-txt text-center text-lg tracking-[0.2em] outline-none focus:border-gold focus:ring-2 focus:ring-gold/15 transition-all"
+            style="border-radius:10px" autocomplete="off">
+        </div>
+        <button id="btn-pin" class="btn-gold w-full" onclick="handlePinSubmit()">
+          <i class="fas fa-unlock mr-2"></i>Entrar
+        </button>
+      </div>
+      <p id="pin-loading" class="text-center text-muted text-xs mt-4" style="display:none"><span class="spinner"></span> Conectando...</p>
+    </div>
+  </div>
+</div>
+
+<!-- PANTALLA LOGIN (nombre) -->
+<div id="screen-login" class="screen">
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="login-card bg-card border border-border rounded-2xl p-8 sm:p-10 w-full max-w-md relative" style="animation:si .5s ease-out">
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full border-2 border-gold/30 mb-5" style="animation:pg 3s ease-in-out infinite">
+          <i class="fas fa-futbol text-gold text-3xl"></i>
+        </div>
+        <h1 class="font-display text-4xl sm:text-5xl font-bold text-gold tracking-wide">QUINIELA</h1>
+        <p class="font-display text-lg text-gold/60 tracking-widest mt-1">MUNDIALISTA</p>
+        <p class="text-muted text-sm mt-3">Octavos de Final — FIFA World Cup</p>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-muted mb-2" for="login-name">Tu nombre</label>
+          <input id="login-name" type="text" maxlength="20" placeholder="Ingresa tu nombre..."
+            class="w-full bg-surface border border-border px-4 py-3 text-txt text-sm outline-none focus:border-gold focus:ring-2 focus:ring-gold/15 transition-all"
+            style="border-radius:10px" autocomplete="off">
+        </div>
+        <button class="btn-gold w-full" onclick="handleLogin()">
+          <i class="fas fa-arrow-right mr-2"></i>Entrar a la Quiniela
+        </button>
+      </div>
+      <div class="mt-6 text-center">
+        <button onclick="doLogout()" class="text-muted hover:text-gold transition-colors cursor-pointer bg-transparent border-none font-body text-xs">
+          <i class="fas fa-arrow-left mr-1"></i>Cambiar PIN
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-main" style="display:none">
+  <nav id="sidebar" role="navigation" aria-label="Navegacion principal">
+    <div class="p-5 border-b border-border"><p class="font-display text-lg font-bold text-gold tracking-wide">QUINIELA</p><p class="text-muted text-xs mt-0.5">Mundialista</p></div>
+    <div class="flex-1 py-4 space-y-1">
+      <div class="nav-item active" data-screen="predictions" onclick="navTo('predictions')" role="button" tabindex="0"><i class="fas fa-futbol"></i><span>Mis Predicciones</span></div>
+      <div class="nav-item" data-screen="standings" onclick="navTo('standings')" role="button" tabindex="0"><i class="fas fa-trophy"></i><span>Clasificacion</span></div>
+      <div class="nav-item" data-screen="details" onclick="navTo('details')" role="button" tabindex="0"><i class="fas fa-table-cells"></i><span>Detalle por Partido</span></div>
+      <div class="nav-item" data-screen="admin" onclick="navTo('admin')" role="button" tabindex="0"><i class="fas fa-gear"></i><span>Administracion</span></div>
+    </div>
+    <div class="p-4 border-t border-border">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-8 h-8 rounded-full bg-gold/15 flex items-center justify-center"><i class="fas fa-user text-gold text-xs"></i></div>
+        <div><p id="sidebar-username" class="text-sm font-semibold text-txt truncate max-w-[140px]"></p><p class="text-xs text-muted">Jugador</p></div>
+      </div>
+      <button onclick="doLogout()" class="w-full text-left text-xs text-muted hover:text-danger transition-colors cursor-pointer bg-transparent border-none font-body py-1"><i class="fas fa-sign-out-alt mr-1"></i>Salir</button>
+    </div>
+  </nav>
+  <nav id="bottom-nav" role="navigation" aria-label="Navegacion movil">
+    <div class="bnav-item active" data-screen="predictions" onclick="navTo('predictions')"><i class="fas fa-futbol"></i><span>Pronosticos</span></div>
+    <div class="bnav-item" data-screen="standings" onclick="navTo('standings')"><i class="fas fa-trophy"></i><span>Clasificacion</span></div>
+    <div class="bnav-item" data-screen="details" onclick="navTo('details')"><i class="fas fa-table-cells"></i><span>Detalle</span></div>
+    <div class="bnav-item" data-screen="admin" onclick="navTo('admin')"><i class="fas fa-gear"></i><span>Admin</span></div>
+  </nav>
+  <main id="content">
+    <section id="screen-predictions" class="screen active"><div id="predictions-content"></div></section>
+    <section id="screen-standings" class="screen"><div id="standings-content"></div></section>
+    <section id="screen-details" class="screen"><div id="details-content"></div></section>
+    <section id="screen-admin" class="screen"><div id="admin-content"></div></section>
+  </main>
+</div>
+
+<div id="toast-container" aria-live="polite"></div>
+
+<div id="modal-pin" class="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <div class="text-center mb-5">
+      <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gold/10 mb-3"><i class="fas fa-shield-halved text-gold text-xl"></i></div>
+      <h3 class="font-display text-xl font-bold text-txt">Acceso Administrador</h3>
+      <p class="text-muted text-sm mt-1">Ingresa el PIN de administrador</p>
+    </div>
+    <input id="admin-pin-input" type="password" maxlength="20" placeholder="PIN Admin"
+      class="w-full bg-surface border border-border rounded-lg px-4 py-3 text-txt text-center text-lg tracking-[0.3em] outline-none focus:border-gold transition-all mb-4" autocomplete="off">
+    <div class="flex gap-3">
+      <button onclick="closePinModal()" class="btn-outline flex-1">Cancelar</button>
+      <button onclick="verifyAdminPin()" class="btn-gold flex-1">Verificar</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-confirm" class="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <div class="text-center mb-5">
+      <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-danger/10 mb-3"><i class="fas fa-exclamation-triangle text-danger text-xl"></i></div>
+      <h3 id="confirm-title" class="font-display text-xl font-bold text-txt"></h3>
+      <p id="confirm-msg" class="text-muted text-sm mt-2"></p>
+    </div>
+    <div class="flex gap-3">
+      <button onclick="closeConfirmModal()" class="btn-outline flex-1">Cancelar</button>
+      <button id="confirm-btn" class="btn-danger flex-1">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// ESTADO GLOBAL
+// ============================================================
+var sb = null;
+var ME = null;
+var SETS = null;
+var MATCHES = [];
+var IS_ADMIN = false;
+var CUR_SCREEN = 'predictions';
+var ADM_TAB = 'matches';
+var DET_MATCH = 1;
+var ALL_PREDICTIONS = [];
+var ALL_PLAYERS = [];
+
+// ============================================================
+// SHA-256 en el navegador
+// ============================================================
+async function sha256(str) {
+  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+  try {
+    sb = window.supabase.createClient(SB_URL, SB_KEY);
+
+    // Verificar sesión previa
+    var pinOk = sessionStorage.getItem('qm_pin_ok') === 'true';
+    var sessData = sessionStorage.getItem('qm_session');
+
+    if (pinOk && sessData) {
+      ME = JSON.parse(sessData);
+      // Verificar que el jugador existe
+      var { data: pc } = await sb.from('players').select('id,name').eq('id', ME.id).single();
+      if (pc) {
+        ME = pc;
+        await loadAppData();
+        return;
+      }
+    }
+
+    showScreen('screen-pin');
+    document.getElementById('pin-entry').focus();
+  } catch (err) {
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#fca5a5;font-family:sans-serif;text-align:center;padding:20px"><div><i class="fas fa-exclamation-triangle" style="font-size:48px;margin-bottom:16px;display:block"></i><p style="font-size:18px;margin-bottom:8px">Error de conexion</p><p style="font-size:14px;color:#5a6a8a">' + esc(String(err)) + '</p><p style="font-size:12px;color:#5a6a8a;margin-top:16px">Verifica que la SUPABASE_ANON_KEY este correcta en index.html linea 8</p></div></div>';
+  }
+}
+
+// ============================================================
+// PIN DE ENTRADA: verificar contra hash en Supabase
+// ============================================================
+async function handlePinSubmit() {
+  var pin = document.getElementById('pin-entry').value.trim();
+  if (!pin) { toast('Ingresa el PIN', 'error'); return; }
+
+  var btn = document.getElementById('btn-pin');
+  var load = document.getElementById('pin-loading');
+  btn.disabled = true;
+  load.style.display = 'block';
+
+  try {
+    // Leer el hash almacenado en Supabase
+    var { data: settings, error } = await sb.from('settings').select('entry_pin_hash').single();
+    if (error) throw error;
+
+    // Calcular hash del PIN ingresado
+    var hash = await sha256(pin);
+
+    if (hash === settings.entry_pin_hash) {
+      sessionStorage.setItem('qm_pin_ok', 'true');
+      showScreen('screen-login');
+      document.getElementById('login-name').focus();
+      toast('PIN correcto', 'success');
+    } else {
+      toast('PIN incorrecto', 'error');
+      document.getElementById('pin-entry').value = '';
+      document.getElementById('pin-entry').focus();
+    }
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    load.style.display = 'none';
+  }
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
+async function handleLogin() {
+  var inp = document.getElementById('login-name');
+  var name = inp.value.trim();
+  if (!name) { toast('Ingresa tu nombre', 'error'); inp.focus(); return; }
+  if (name.length < 2) { toast('Minimo 2 caracteres', 'error'); inp.focus(); return; }
+
+  inp.disabled = true;
+  try {
+    var { data, error } = await sb.from('players').upsert({ name: name }, { onConflict: 'name' }).select().single();
+    if (error) throw error;
+    ME = data;
+    sessionStorage.setItem('qm_session', JSON.stringify(ME));
+    await loadAppData();
+    toast('Bienvenido, ' + name, 'success');
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    inp.disabled = false;
+  }
+}
+
+// ============================================================
+// CARGAR DATOS
+// ============================================================
+async function loadAppData() {
+  try {
+    var [sR, mR] = await Promise.all([
+      sb.from('settings').select('*').single(),
+      sb.from('matches').select('*').order('id')
+    ]);
+    SETS = sR.data;
+    MATCHES = mR.data;
+    document.getElementById('screen-pin').classList.remove('active');
+    document.getElementById('screen-login').classList.remove('active');
+    document.getElementById('app-main').style.display = 'block';
+    document.getElementById('sidebar-username').textContent = ME.name;
+    navTo('predictions');
+  } catch (e) {
+    toast('Error cargando datos', 'error');
+    console.error(e);
+  }
+}
+
+// ============================================================
+// LOGOUT
+// ============================================================
+function doLogout() {
+  ME = null; SETS = null; MATCHES = []; IS_ADMIN = false; ALL_PREDICTIONS = []; ALL_PLAYERS = [];
+  sessionStorage.removeItem('qm_session');
+  sessionStorage.removeItem('qm_pin_ok');
+  document.getElementById('app-main').style.display = 'none';
+  document.getElementById('screen-login').classList.remove('active');
+  document.getElementById('pin-entry').value = '';
+  document.getElementById('login-name').value = '';
+  showScreen('screen-pin');
+  document.getElementById('pin-entry').focus();
+}
+
+// ============================================================
+// NAVEGACION
+// ============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+}
+
+function navTo(sid) {
+  if (sid === 'admin' && !IS_ADMIN) { openPinModal(); return; }
+  CUR_SCREEN = sid;
+  document.querySelectorAll('#content .screen').forEach(function(s) { s.classList.remove('active'); });
+  var tg = document.getElementById('screen-' + sid); if (tg) tg.classList.add('active');
+  document.querySelectorAll('#sidebar .nav-item').forEach(function(n) { n.classList.remove('active'); });
+  document.querySelectorAll('#bottom-nav .bnav-item').forEach(function(n) { n.classList.remove('active'); });
+  document.querySelectorAll('[data-screen="' + sid + '"]').forEach(function(n) { n.classList.add('active'); });
+  if (sid === 'predictions') rPred();
+  else if (sid === 'standings') rSt();
+  else if (sid === 'details') rDet();
+  else if (sid === 'admin') rAdm();
+}
+
+// ============================================================
+// PUNTUACION
+// ============================================================
+function cmpPts(pred, m) {
+  if (m.home_result === null || m.away_result === null) return 0;
+  if (!pred) return 0;
+  if (pred.home_goals === m.home_result && pred.away_goals === m.away_result) return 5;
+  if (Math.sign(pred.home_goals - pred.away_goals) === Math.sign(m.home_result - m.away_result)) return 3;
+  return 0;
+}
+
+// ============================================================
+// RENDER: PREDICCIONES
+// ============================================================
+async function rPred() {
+  var c = document.getElementById('predictions-content');
+  c.innerHTML = '<div class="text-center py-16"><span class="spinner"></span></div>';
+  try {
+    var { data: preds } = await sb.from('predictions').select('*').eq('player_id', ME.id);
+    var predMap = {}; (preds || []).forEach(function(p) { predMap[p.match_id] = p; });
+    var lk = SETS.locked;
+    var hasR = MATCHES.some(function(m) { return m.home_result !== null; });
+    var st = lk ? '<span class="status-badge status-locked"><i class="fas fa-lock text-[10px]"></i> Cerrado</span>' : '<span class="status-badge status-open"><i class="fas fa-lock-open text-[10px]"></i> Abierto</span>';
+    var h = '<div class="flex flex-wrap items-center justify-between gap-3 mb-6"><div><h2 class="font-display text-2xl font-bold text-txt">Mis Predicciones</h2><p class="text-muted text-sm mt-0.5">Octavos de Final — ' + st + '</p></div>';
+    if (!lk) h += '<button class="btn-gold text-sm" onclick="savePred()"><i class="fas fa-save mr-2"></i>Guardar</button>';
+    h += '</div>';
+    if (lk) h += '<div class="bg-danger/8 border border-danger/20 rounded-xl p-3 mb-5 text-sm text-danger/80 flex items-center gap-2" style="animation:sd .3s ease"><i class="fas fa-info-circle"></i>Las predicciones estan cerradas.</div>';
+    h += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+    MATCHES.forEach(function(m) {
+      var pr = predMap[m.id]; var ph = pr ? pr.home_goals : ''; var pa = pr ? pr.away_goals : '';
+      var hr = m.home_result !== null && m.away_result !== null; var pts = cmpPts(pr, m);
+      var rh = '';
+      if (hr) {
+        var pb = pts === 5 ? '<span class="inline-flex items-center gap-1 text-gold text-xs font-bold"><i class="fas fa-star"></i> +5</span>' : pts === 3 ? '<span class="inline-flex items-center gap-1 text-success text-xs font-bold"><i class="fas fa-check"></i> +3</span>' : '<span class="inline-flex items-center gap-1 text-danger/60 text-xs"><i class="fas fa-xmark"></i> 0</span>';
+        rh = '<div class="mt-3 pt-3 border-t border-border flex items-center justify-between"><span class="text-xs text-muted">Resultado: <span class="font-display text-base font-bold text-txt">' + m.home_result + ' - ' + m.away_result + '</span></span>' + pb + '</div>';
+      }
+      h += '<div class="match-card' + (hr ? ' has-result' : '') + '"><div class="flex items-center justify-between mb-4"><span class="text-xs font-bold text-muted font-display tracking-wider">PARTIDO ' + String(m.id).padStart(2, '0') + '</span>' + (lk ? '<i class="fas fa-lock text-muted/30 text-xs"></i>' : '') + '</div><div class="flex items-center justify-between gap-3"><div class="flex-1 text-right"><p class="font-display text-base sm:text-lg font-semibold text-txt truncate">' + esc(m.home_team) + '</p></div><div class="flex items-center gap-2"><input type="number" min="0" max="99" class="goal-input" id="ph-' + m.id + '" value="' + ea(ph) + '" ' + (lk ? 'disabled' : '') + '><span class="text-muted text-xs font-bold">-</span><input type="number" min="0" max="99" class="goal-input" id="pa-' + m.id + '" value="' + ea(pa) + '" ' + (lk ? 'disabled' : '') + '></div><div class="flex-1"><p class="font-display text-base sm:text-lg font-semibold text-txt truncate">' + esc(m.away_team) + '</p></div></div>' + rh + '</div>';
+    });
+    h += '</div>';
+    if (hasR) {
+      var t = 0, ex = 0, ac = 0, fa = 0;
+      MATCHES.forEach(function(m) { var p = cmpPts(predMap[m.id], m); t += p; if (p === 5) ex++; else if (p === 3) ac++; else if (predMap[m.id]) fa++; });
+      var mx = MATCHES.length * 5, pc = Math.round((t / mx) * 100);
+      h += '<div class="mt-6 bg-card border border-border rounded-xl p-5"><div class="flex items-center justify-between mb-3"><span class="font-display text-lg font-bold text-txt">Mi Rendimiento</span><span class="font-display text-2xl font-bold text-gold">' + t + '<span class="text-sm text-muted font-body font-normal"> / ' + mx + '</span></span></div><div class="pts-bar mb-3"><div class="pts-bar-fill" style="width:' + pc + '%"></div></div><div class="flex gap-6 text-sm"><span class="text-gold"><i class="fas fa-star mr-1"></i>' + ex + ' exactos</span><span class="text-success"><i class="fas fa-check mr-1"></i>' + ac + ' aciertos</span><span class="text-danger/60"><i class="fas fa-xmark mr-1"></i>' + fa + ' fallidos</span></div></div>';
+    }
+    c.innerHTML = h;
+  } catch (e) { c.innerHTML = '<p class="text-danger text-center py-8">Error al cargar</p>'; console.error(e); }
+}
+
+async function savePred() {
+  if (SETS.locked) { toast('Cerrado', 'error'); return; }
+  var rows = [], any = false, err = false;
+  MATCHES.forEach(function(m) {
+    if (err) return;
+    var hi = document.getElementById('ph-' + m.id), ai = document.getElementById('pa-' + m.id);
+    var hv = hi ? hi.value.trim() : '', av = ai ? ai.value.trim() : '';
+    if (hv !== '' || av !== '') {
+      if (hv === '' || av === '') { toast('Completa Partido ' + m.id, 'error'); err = true; return; }
+      var hn = parseInt(hv), an = parseInt(av);
+      if (isNaN(hn) || isNaN(an) || hn < 0 || an < 0) { toast('Invalido Partido ' + m.id, 'error'); err = true; return; }
+      rows.push({ player_id: ME.id, match_id: m.id, home_goals: hn, away_goals: an });
+      any = true;
+    }
+  });
+  if (err) return;
+  if (!any) { toast('Ingresa al menos un marcador', 'error'); return; }
+  try {
+    await sb.from('predictions').delete().eq('player_id', ME.id);
+    var { error } = await sb.from('predictions').insert(rows);
+    if (error) throw error;
+    toast('Predicciones guardadas', 'success');
+    rPred();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ============================================================
+// RENDER: CLASIFICACION
+// ============================================================
+async function rSt() {
+  var c = document.getElementById('standings-content');
+  c.innerHTML = '<div class="text-center py-16"><span class="spinner"></span></div>';
+  try {
+    var { data: players } = await sb.from('players').select('*').order('name');
+    var { data: preds } = await sb.from('predictions').select('*');
+    ALL_PLAYERS = players || []; ALL_PREDICTIONS = preds || [];
+    var mp = MATCHES.filter(function(m) { return m.home_result !== null; }).length;
+    var mx = MATCHES.length * 5;
+    var results = ALL_PLAYERS.map(function(pl) {
+      var plP = ALL_PREDICTIONS.filter(function(p) { return p.player_id === pl.id; });
+      var pm2 = {}; plP.forEach(function(p) { pm2[p.match_id] = p; });
+      var t = 0, ex = 0, ac = 0, fa = 0, pm = [];
+      MATCHES.forEach(function(m) { var pts = cmpPts(pm2[m.id], m); t += pts; pm.push(pts); if (pts === 5) ex++; else if (pts === 3) ac++; else if (pm2[m.id]) fa++; });
+      return { name: pl.name, t: t, ex: ex, ac: ac, fa: fa, pm: pm };
+    }).sort(function(a, b) { return b.t - a.t || b.ex - a.ex || b.ac - a.ac; });
+    var n = results.length;
+    var h = '<div class="flex flex-wrap items-end justify-between gap-3 mb-6"><div><h2 class="font-display text-2xl font-bold text-txt">Tabla de Posiciones</h2><p class="text-muted text-sm mt-0.5">' + n + ' jugadores' + (mp > 0 ? ' — ' + mp + '/' + MATCHES.length + ' jugados' : ' — Sin resultados') + '</p></div></div>';
+    if (n > 0) {
+      var ld = results[0], av = (results.reduce(function(s, p) { return s + p.t; }, 0) / n).toFixed(1);
+      h += '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">';
+      h += kpiC('fa-crown', 'Lider', ld.name, 'text-gold', 'bg-gold/8', 'border-gold/15');
+      h += kpiC('fa-star', 'Max Puntos', ld.t, 'text-gold', 'bg-gold/8', 'border-gold/15');
+      h += kpiC('fa-chart-line', 'Promedio', av, 'text-info', 'bg-info/8', 'border-info/15');
+      h += kpiC('fa-futbol', 'Jugados', mp + '/' + MATCHES.length, 'text-success', 'bg-success/8', 'border-success/15');
+      h += '</div>';
+    }
+    if (n === 0) { h += '<div class="text-center py-16 text-muted"><i class="fas fa-users text-4xl mb-4 opacity-30"></i><p>Sin jugadores</p></div>'; c.innerHTML = h; return; }
+    h += '<div class="bg-card border border-border rounded-xl overflow-hidden mb-6"><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="border-b border-border text-left"><th class="px-4 py-3 text-muted font-semibold text-xs w-12">#</th><th class="px-4 py-3 text-muted font-semibold text-xs">Jugador</th><th class="px-4 py-3 text-muted font-semibold text-xs text-center">PTS</th><th class="px-4 py-3 text-muted font-semibold text-xs text-center hidden sm:table-cell"><i class="fas fa-star text-gold/50"></i></th><th class="px-4 py-3 text-muted font-semibold text-xs text-center hidden sm:table-cell"><i class="fas fa-check text-success/50"></i></th><th class="px-4 py-3 text-muted font-semibold text-xs text-center hidden md:table-cell"><i class="fas fa-xmark text-danger/40"></i></th><th class="px-4 py-3 text-muted font-semibold text-xs hidden lg:table-cell" style="min-width:120px">Progreso</th></tr></thead><tbody>';
+    results.forEach(function(p, i) {
+      var rk = i + 1, pc = mx > 0 ? Math.round((p.t / mx) * 100) : 0, md = '';
+      if (rk === 1) md = '<span class="medal medal-gold"><i class="fas fa-trophy"></i></span>';
+      else if (rk === 2) md = '<span class="medal medal-silver"><i class="fas fa-medal"></i></span>';
+      else if (rk === 3) md = '<span class="medal medal-bronze"><i class="fas fa-medal"></i></span>';
+      else md = '<span class="text-muted text-sm">' + rk + '</span>';
+      var me = p.name === ME.name;
+      h += '<tr class="border-b border-border/50 hover:bg-white/[0.02]' + (me ? ' bg-gold/[0.04]' : '') + '"><td class="px-4 py-3 text-center">' + md + '</td><td class="px-4 py-3 font-semibold' + (me ? ' text-gold' : ' text-txt') + '">' + esc(p.name) + (me ? ' <span class="text-xs text-gold/50 font-normal">(tu)</span>' : '') + '</td><td class="px-4 py-3 text-center"><span class="font-display text-xl font-bold text-txt">' + p.t + '</span></td><td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-gold font-semibold">' + p.ex + '</span></td><td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-success font-semibold">' + p.ac + '</span></td><td class="px-4 py-3 text-center hidden md:table-cell"><span class="text-danger/50">' + p.fa + '</span></td><td class="px-4 py-3 hidden lg:table-cell"><div class="pts-bar"><div class="pts-bar-fill" style="width:' + pc + '%"></div></div></td></tr>';
+    });
+    h += '</tbody></table></div></div>';
+    if (mp > 0) {
+      h += '<div class="bg-card border border-border rounded-xl p-4 sm:p-5 overflow-x-auto"><h3 class="font-display text-lg font-bold text-txt mb-4">Matriz de Puntos</h3><table class="w-full text-xs"><thead><tr class="border-b border-border"><th class="px-2 py-2 text-left text-muted font-semibold min-w-[100px]">Jugador</th>';
+      MATCHES.forEach(function(m) { h += '<th class="px-1 py-2 text-center text-muted font-semibold w-9">P' + m.id + '</th>'; });
+      h += '<th class="px-2 py-2 text-center text-muted font-bold">TOTAL</th></tr></thead><tbody>';
+      results.forEach(function(p) {
+        var me = p.name === ME.name;
+        h += '<tr class="border-b border-border/30' + (me ? ' bg-gold/[0.04]' : '') + '"><td class="px-2 py-1.5 font-semibold truncate max-w-[120px]' + (me ? ' text-gold' : ' text-txt') + '">' + esc(p.name) + '</td>';
+        p.pm.forEach(function(pts) { var cl = pts === 5 ? 'pts-5' : pts === 3 ? 'pts-3' : 'pts-0'; h += '<td class="px-1 py-1.5 text-center"><div class="matrix-cell ' + cl + ' mx-auto">' + pts + '</div></td>'; });
+        h += '<td class="px-2 py-1.5 text-center font-display font-bold text-lg text-txt">' + p.t + '</td></tr>';
+      });
+      h += '</tbody></table></div><div class="flex gap-5 mt-3 text-xs text-muted"><span><span class="matrix-cell pts-5 inline-flex w-5 h-5 text-[10px] mr-1">5</span> Exacto</span><span><span class="matrix-cell pts-3 inline-flex w-5 h-5 text-[10px] mr-1">3</span> Resultado</span><span><span class="matrix-cell pts-0 inline-flex w-5 h-5 text-[10px] mr-1">0</span> Fallido</span></div>';
+    }
+    c.innerHTML = h;
+  } catch (e) { c.innerHTML = '<p class="text-danger text-center py-8">Error al cargar</p>'; console.error(e); }
+}
+
+function kpiC(ic, lb, vl, tc, bc, bd) { return '<div class="' + bc + ' border ' + bd + ' rounded-xl p-4"><div class="flex items-center gap-2 mb-2"><i class="fas ' + ic + ' ' + tc + ' text-sm"></i><span class="text-muted text-xs font-medium">' + lb + '</span></div><p class="font-display text-xl font-bold ' + tc + ' truncate">' + esc(String(vl)) + '</p></div>'; }
+
+// ============================================================
+// RENDER: DETALLE POR PARTIDO
+// ============================================================
+async function rDet() {
+  var c = document.getElementById('details-content');
+  c.innerHTML = '<div class="text-center py-16"><span class="spinner"></span></div>';
+  try {
+    if (!ALL_PLAYERS.length) { var r1 = await sb.from('players').select('*').order('name'); ALL_PLAYERS = r1.data || []; }
+    if (!ALL_PREDICTIONS.length) { var r2 = await sb.from('predictions').select('*'); ALL_PREDICTIONS = r2.data || []; }
+    var h = '<div class="mb-6"><h2 class="font-display text-2xl font-bold text-txt">Detalle por Partido</h2><p class="text-muted text-sm mt-0.5">Comparacion de predicciones</p></div><div class="flex gap-2 mb-6 overflow-x-auto pb-2">';
+    MATCHES.forEach(function(m) { var ac = m.id === DET_MATCH; h += '<button onclick="DET_MATCH=' + m.id + ';rDet()" class="flex-shrink-0 px-4 py-2 rounded-lg text-xs font-bold font-display tracking-wider transition-all ' + (ac ? 'bg-gold/15 text-gold border border-gold/30' : 'bg-card border border-border text-muted hover:text-txt hover:border-gold/20') + '">P' + String(m.id).padStart(2, '0') + '</button>'; });
+    h += '</div>';
+    var m = MATCHES.find(function(x) { return x.id === DET_MATCH; });
+    if (!m) { c.innerHTML = h; return; }
+    var hasR = m.home_result !== null && m.away_result !== null;
+    h += '<div class="bg-card border border-border rounded-xl p-5 mb-6"><div class="flex items-center justify-between gap-4"><div class="flex-1 text-right"><p class="font-display text-xl sm:text-2xl font-bold text-txt">' + esc(m.home_team) + '</p></div><div class="text-center"><p class="font-display text-3xl font-bold text-muted">VS</p>' + (hasR ? '<p class="font-display text-lg font-bold text-success mt-1">' + m.home_result + ' - ' + m.away_result + '</p>' : '<p class="text-xs text-muted mt-1">Sin resultado</p>') + '</div><div class="flex-1"><p class="font-display text-xl sm:text-2xl font-bold text-txt">' + esc(m.away_team) + '</p></div></div></div>';
+    if (!ALL_PLAYERS.length) { h += '<div class="text-center py-12 text-muted"><i class="fas fa-users text-3xl mb-3 opacity-30"></i><p>Sin jugadores</p></div>'; }
+    else {
+      var mpl = ALL_PLAYERS.map(function(pl) { var pr = ALL_PREDICTIONS.find(function(p) { return p.player_id === pl.id && p.match_id === m.id; }); return { nm: pl.name, pr: pr, pts: cmpPts(pr, m) }; }).sort(function(a, b) { return b.pts - a.pts; });
+      h += '<div class="bg-card border border-border rounded-xl overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="border-b border-border"><th class="px-4 py-3 text-left text-muted font-semibold text-xs w-12">#</th><th class="px-4 py-3 text-left text-muted font-semibold text-xs">Jugador</th><th class="px-4 py-3 text-center text-muted font-semibold text-xs">Prediccion</th>' + (hasR ? '<th class="px-4 py-3 text-center text-muted font-semibold text-xs">Pts</th><th class="px-4 py-3 text-center text-muted font-semibold text-xs">Estado</th>' : '') + '</tr></thead><tbody>';
+      mpl.forEach(function(mp, i) {
+        var me = mp.nm === ME.name;
+        var pt = mp.pr ? (mp.pr.home_goals + ' - ' + mp.pr.away_goals) : 'Sin prediccion';
+        var ph = hasR ? '<td class="px-4 py-3 text-center font-display font-bold text-lg ' + (mp.pts === 5 ? 'text-gold' : mp.pts === 3 ? 'text-success' : 'text-muted/40') + '">' + mp.pts + '</td>' : '';
+        var sh = '';
+        if (hasR) { if (mp.pts === 5) sh = '<td class="px-4 py-3 text-center"><span class="inline-flex items-center gap-1 text-gold text-xs font-bold"><i class="fas fa-star"></i> Exacto</span></td>'; else if (mp.pts === 3) sh = '<td class="px-4 py-3 text-center"><span class="inline-flex items-center gap-1 text-success text-xs font-bold"><i class="fas fa-check"></i> Acierto</span></td>'; else sh = '<td class="px-4 py-3 text-center"><span class="inline-flex items-center gap-1 text-danger/40 text-xs"><i class="fas fa-xmark"></i> Fallido</span></td>'; }
+        h += '<tr class="border-b border-border/30' + (me ? ' bg-gold/[0.04]' : '') + '"><td class="px-4 py-3 text-center text-muted">' + (i + 1) + '</td><td class="px-4 py-3 font-semibold' + (me ? ' text-gold' : ' text-txt') + '">' + esc(mp.nm) + (me ? ' <span class="text-xs text-gold/50 font-normal">(tu)</span>' : '') + '</td><td class="px-4 py-3 text-center font-display text-base font-semibold text-txt">' + pt + '</td>' + ph + sh + '</tr>';
+      });
+      h += '</tbody></table></div></div>';
+    }
+    c.innerHTML = h;
+  } catch (e) { c.innerHTML = '<p class="text-danger text-center py-8">Error</p>'; console.error(e); }
+}
+
+// ============================================================
+// RENDER: ADMIN
+// ============================================================
+async function rAdm() {
+  var c = document.getElementById('admin-content');
+  if (!IS_ADMIN) { c.innerHTML = '<div class="text-center py-16 text-muted"><i class="fas fa-lock text-4xl mb-4 opacity-30"></i><p>No autorizado</p></div>'; return; }
+  var h = '<div class="mb-6"><h2 class="font-display text-2xl font-bold text-txt">Administracion</h2><p class="text-muted text-sm mt-0.5">Gestiona equipos, resultados y configuracion</p></div>';
+  var tabs = [{ id: 'matches', l: 'Equipos', i: 'fa-shield-halved' }, { id: 'results', l: 'Resultados', i: 'fa-clipboard-check' }, { id: 'control', l: 'Control', i: 'fa-sliders' }];
+  h += '<div class="flex gap-2 mb-6">';
+  tabs.forEach(function(t) { h += '<button onclick="ADM_TAB=\'' + t.id + '\';rAdm()" class="admin-tab' + (ADM_TAB === t.id ? ' active' : '') + '"><i class="fas ' + t.i + ' mr-1"></i>' + t.l + '</button>'; });
+  h += '</div>';
+  if (ADM_TAB === 'matches') h += rAdmM();
+  else if (ADM_TAB === 'results') h += rAdmR();
+  else h += await rAdmC();
+  c.innerHTML = h;
+}
+
+function rAdmM() {
+  var h = '<div class="bg-card border border-border rounded-xl p-5 mb-4"><h3 class="font-display text-lg font-bold text-txt mb-1">Editar Equipos</h3><p class="text-muted text-xs mb-5">Nombres de equipos para octavos</p>';
+  MATCHES.forEach(function(m) {
+    h += '<div class="mb-5 pb-5 border-b border-border/50 last:border-0 last:mb-0 last:pb-0"><span class="text-xs font-bold text-muted font-display tracking-wider">PARTIDO ' + String(m.id).padStart(2, '0') + '</span><div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2"><div><label class="text-xs text-muted mb-1 block">Local</label><input type="text" maxlength="30" value="' + ea(m.home_team) + '" id="et-h-' + m.id + '" class="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-txt outline-none focus:border-gold transition-all"></div><div><label class="text-xs text-muted mb-1 block">Visitante</label><input type="text" maxlength="30" value="' + ea(m.away_team) + '" id="et-a-' + m.id + '" class="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-txt outline-none focus:border-gold transition-all"></div></div></div>';
+  });
+  h += '<button onclick="saveTeams()" class="btn-gold text-sm mt-2"><i class="fas fa-save mr-2"></i>Guardar Equipos</button></div>';
+  return h;
+}
+
+function rAdmR() {
+  var h = '<div class="bg-card border border-border rounded-xl p-5 mb-4"><h3 class="font-display text-lg font-bold text-txt mb-1">Ingresar Resultados</h3><p class="text-muted text-xs mb-5">Marcadores reales</p>';
+  MATCHES.forEach(function(m) {
+    var hr = m.home_result !== null && m.away_result !== null;
+    h += '<div class="mb-5 pb-5 border-b border-border/50 last:border-0 last:mb-0 last:pb-0"><div class="flex flex-wrap items-center justify-between gap-2 mb-2"><span class="text-xs font-bold text-muted font-display tracking-wider">PARTIDO ' + String(m.id).padStart(2, '0') + '</span>' + (hr ? '<button onclick="clrR(' + m.id + ')" class="text-xs text-danger/60 hover:text-danger transition-colors cursor-pointer bg-transparent border-none font-body"><i class="fas fa-eraser mr-1"></i>Limpiar</button>' : '') + '</div><div class="flex items-center gap-2 mb-2"><span class="flex-1 text-sm font-semibold text-txt truncate text-right">' + esc(m.home_team) + '</span><input type="number" min="0" max="99" class="goal-input result-input" id="rh-' + m.id + '" value="' + (hr ? m.home_result : '') + '" placeholder="-"><span class="text-muted text-xs font-bold">-</span><input type="number" min="0" max="99" class="goal-input result-input" id="ra-' + m.id + '" value="' + (hr ? m.away_result : '') + '" placeholder="-"><span class="flex-1 text-sm font-semibold text-txt truncate">' + esc(m.away_team) + '</span></div></div>';
+  });
+  h += '<button onclick="saveResults()" class="btn-gold text-sm mt-2"><i class="fas fa-save mr-2"></i>Guardar Resultados</button></div>';
+  return h;
+}
+
+async function rAdmC() {
+  var { data: pls } = await sb.from('players').select('*').order('name');
+  var ns = pls || []; var lk = SETS.locked;
+  var h = '<div class="space-y-4">';
+  h += '<div class="bg-card border border-border rounded-xl p-5"><h3 class="font-display text-lg font-bold text-txt mb-4">Bloqueo de Predicciones</h3><div class="flex items-center justify-between"><div><p class="text-sm text-txt">' + (lk ? 'Cerrado' : 'Abierto') + '</p></div><div class="toggle-switch' + (lk ? ' on' : '') + '" onclick="tglLk()" role="switch" tabindex="0"></div></div></div>';
+  h += '<div class="bg-card border border-border rounded-xl p-5"><h3 class="font-display text-lg font-bold text-txt mb-4">Cambiar PIN Admin</h3><div class="flex gap-3 items-end"><div class="flex-1"><label class="text-xs text-muted mb-1 block">Nuevo PIN Admin</label><input type="password" id="npin" maxlength="20" placeholder="Nuevo PIN" class="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-txt outline-none focus:border-gold transition-all" autocomplete="off"></div><button onclick="chgPin()" class="btn-outline text-sm">Cambiar</button></div></div>';
+  h += '<div class="bg-card border border-border rounded-xl p-5"><h3 class="font-display text-lg font-bold text-txt mb-1">Jugadores (' + ns.length + ')</h3><p class="text-muted text-xs mb-4">de ~10 esperados</p>';
+  if (!ns.length) h += '<p class="text-muted text-sm">Sin jugadores</p>';
+  else { h += '<div class="space-y-2">'; ns.forEach(function(pl) { h += '<div class="flex items-center justify-between py-2 px-3 rounded-lg bg-surface/50"><div class="flex items-center gap-3"><div class="w-7 h-7 rounded-full bg-gold/10 flex items-center justify-center"><i class="fas fa-user text-gold text-xs"></i></div><div><p class="text-sm font-semibold text-txt">' + esc(pl.name) + '</p><p class="text-xs text-muted">' + new Date(pl.created_at).toLocaleString('es') + '</p></div></div></div>'; }); h += '</div>'; }
+  h += '</div>';
+  h += '<div class="bg-card border border-danger/20 rounded-xl p-5"><h3 class="font-display text-lg font-bold text-danger mb-1">Zona Peligrosa</h3><p class="text-muted text-xs mb-4">Acciones irreversibles</p><div class="flex flex-wrap gap-3"><button onclick="cfmRR()" class="btn-danger text-sm"><i class="fas fa-eraser mr-1"></i>Borrar Resultados</button><button onclick="cfmRP()" class="btn-danger text-sm"><i class="fas fa-broom mr-1"></i>Borrar Predicciones</button></div></div>';
+  h += '</div>'; return h;
+}
+
+// ============================================================
+// ACCIONES ADMIN
+// ============================================================
+async function saveTeams() {
+  try {
+    for (var i = 0; i < MATCHES.length; i++) {
+      var m = MATCHES[i];
+      var ht = document.getElementById('et-h-' + m.id).value.trim();
+      var at = document.getElementById('et-a-' + m.id).value.trim();
+      await sb.from('matches').update({ home_team: ht, away_team: at }).eq('id', m.id);
+    }
+    var { data } = await sb.from('matches').select('*').order('id'); MATCHES = data;
+    toast('Equipos actualizados', 'success'); rAdm();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function saveResults() {
+  try {
+    for (var i = 0; i < MATCHES.length; i++) {
+      var m = MATCHES[i];
+      var hi = document.getElementById('rh-' + m.id), ai = document.getElementById('ra-' + m.id);
+      var hv = hi.value.trim(), av = ai.value.trim();
+      if (hv === '' && av === '') await sb.from('matches').update({ home_result: null, away_result: null }).eq('id', m.id);
+      else if (hv !== '' && av !== '') await sb.from('matches').update({ home_result: parseInt(hv), away_result: parseInt(av) }).eq('id', m.id);
+      else { toast('Completa Partido ' + m.id, 'error'); return; }
+    }
+    var { data } = await sb.from('matches').select('*').order('id'); MATCHES = data; ALL_PREDICTIONS = [];
+    toast('Resultados guardados', 'success'); rAdm();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function clrR(id) {
+  await sb.from('matches').update({ home_result: null, away_result: null }).eq('id', id);
+  var { data } = await sb.from('matches').select('*').order('id'); MATCHES = data; ALL_PREDICTIONS = [];
+  toast('Resultado P' + id + ' eliminado', 'info'); rAdm();
+}
+
+async function tglLk() {
+  var nl = !SETS.locked;
+  await sb.from('settings').update({ locked: nl }).eq('id', 1); SETS.locked = nl;
+  toast(nl ? 'Cerrado' : 'Abierto', nl ? 'error' : 'success'); rAdm();
+}
+
+async function chgPin() {
+  var inp = document.getElementById('npin'), np = inp.value.trim();
+  if (!np || np.length < 3) { toast('PIN minimo 3 caracteres', 'error'); return; }
+  var hash = await sha256(np);
+  await sb.from('settings').update({ admin_pin_hash: hash }).eq('id', 1);
+  SETS.admin_pin_hash = hash; inp.value = ''; toast('PIN admin cambiado', 'success');
+}
+
+function cfmRR() { showCf('Borrar Resultados', 'Se eliminaran todos los resultados reales.', async function() { await sb.from('matches').update({ home_result: null, away_result: null }); var { data } = await sb.from('matches').select('*').order('id'); MATCHES = data; ALL_PREDICTIONS = []; toast('Resultados borrados', 'info'); rAdm(); }); }
+function cfmRP() { showCf('Borrar Predicciones', 'Se eliminaran TODAS las predicciones.', async function() { await sb.from('predictions').delete().neq('id', '00000000-0000-0000-0000-000000000000'); ALL_PREDICTIONS = []; toast('Predicciones borradas', 'info'); rAdm(); }); }
+
+// ============================================================
+// ADMIN PIN MODAL
+// ============================================================
+function openPinModal() { document.getElementById('admin-pin-input').value = ''; document.getElementById('modal-pin').classList.add('active'); setTimeout(function() { document.getElementById('admin-pin-input').focus(); }, 100); }
+function closePinModal() { document.getElementById('modal-pin').classList.remove('active'); }
+
+async function verifyAdminPin() {
+  var pin = document.getElementById('admin-pin-input').value.trim();
+  if (!pin) { toast('Ingresa el PIN', 'error'); return; }
+  var hash = await sha256(pin);
+  if (hash === SETS.admin_pin_hash) {
+    IS_ADMIN = true; closePinModal(); toast('Admin activado', 'success'); navTo('admin');
+  } else {
+    toast('PIN incorrecto', 'error'); document.getElementById('admin-pin-input').value = '';
+    document.getElementById('admin-pin-input').focus();
+  }
+}
+
+// ============================================================
+// CONFIRM MODAL
+// ============================================================
+var cfCb = null;
+function showCf(t, m, cb) { document.getElementById('confirm-title').textContent = t; document.getElementById('confirm-msg').textContent = m; cfCb = cb; document.getElementById('modal-confirm').classList.add('active'); }
+function closeConfirmModal() { document.getElementById('modal-confirm').classList.remove('active'); cfCb = null; }
+document.getElementById('confirm-btn').addEventListener('click', function() { if (cfCb) cfCb(); closeConfirmModal(); });
+
+// ============================================================
+// TOAST
+// ============================================================
+function toast(msg, type) {
+  type = type || 'success'; var c = document.getElementById('toast-container'), t = document.createElement('div');
+  t.className = 'toast toast-' + type; var im = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle' };
+  t.innerHTML = '<i class="fas ' + (im[type] || im.info) + '"></i><span>' + esc(msg) + '</span>'; c.appendChild(t);
+  requestAnimationFrame(function() { requestAnimationFrame(function() { t.classList.add('show'); }); });
+  setTimeout(function() { t.classList.remove('show'); setTimeout(function() { t.remove(); }, 300); }, 3000);
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function ea(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// ============================================================
+// EVENTOS
+// ============================================================
+document.getElementById('pin-entry').addEventListener('keydown', function(e) { if (e.key === 'Enter') handlePinSubmit(); });
+document.getElementById('login-name').addEventListener('keydown', function(e) { if (e.key === 'Enter') handleLogin(); });
+document.getElementById('admin-pin-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') verifyAdminPin(); });
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closePinModal(); closeConfirmModal(); } });
+document.getElementById('modal-pin').addEventListener('click', function(e) { if (e.target === this) closePinModal(); });
+document.getElementById('modal-confirm').addEventListener('click', function(e) { if (e.target === this) closeConfirmModal(); });
+
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(function() {}); }
+
+// ============================================================
+// INICIO
+// ============================================================
+init();
+</script>
+</body>
+</html>
