@@ -258,6 +258,7 @@ async function sha256(str) {
 async function init() {
   try {
     sb = window.supabase.createClient(SB_URL, SB_KEY);
+    setupRealtime(); // Iniciar subscripciones realtime
 
     // Verificar sesión previa
     var pinOk = sessionStorage.getItem('qm_pin_ok') === 'true';
@@ -341,6 +342,33 @@ async function handleLogin() {
   } finally {
     inp.disabled = false;
   }
+}
+
+// ============================================================
+// REALTIME
+// ============================================================
+function setupRealtime() {
+  sb.channel('public-changes')
+    .on('postgres_changes', { event: '*', schema: 'public' }, async function(payload) {
+      if (!ME) return;
+      try {
+        var [sR, mR] = await Promise.all([
+          sb.from('settings').select('*').single(),
+          sb.from('matches').select('*').order('id')
+        ]);
+        if (sR.data) SETS = sR.data;
+        if (mR.data) MATCHES = mR.data;
+
+        // Actualizar UI si está en vistas de solo lectura
+        if (CUR_SCREEN === 'standings') rSt();
+        else if (CUR_SCREEN === 'details') rDet();
+        else {
+           // En 'predictions' o 'admin' no recargamos violentamente para no borrar inputs
+           toast('Actualización recibida', 'info');
+        }
+      } catch (e) { console.error('Realtime update error', e); }
+    })
+    .subscribe();
 }
 
 // ============================================================
