@@ -3,12 +3,13 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Quiniela Mundialista</title>
   <meta name="description" content="Predice los marcadores de los octavos de final del Mundial FIFA">
   <meta name="theme-color" content="#080c14">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23080c14'/%3E%3Ccircle cx='256' cy='220' r='110' fill='none' stroke='%23d4a537' stroke-width='14'/%3E%3Cpath d='M205 220 L245 260 L310 180' fill='none' stroke='%23d4a537' stroke-width='18' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ctext x='256' y='390' text-anchor='middle' font-family='sans-serif' font-size='72' font-weight='bold' fill='%23d4a537'%3EQ%3C/text%3E%3C/svg%3E">
   <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
@@ -52,8 +53,12 @@
       font-family: 'DM Sans', sans-serif;
       background: var(--bg);
       color: #e2e8f0;
-      min-height: 100dvh;
-      overflow-x: hidden
+      min-height: 100vh; min-height: 100dvh;
+      overflow-x: hidden;
+      /* iOS safe area support */
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
     }
 
     ::-webkit-scrollbar {
@@ -290,7 +295,7 @@
 
     #content {
       margin-left: 240px;
-      min-height: 100dvh;
+      min-height: 100vh; min-height: 100dvh;
       padding: 24px 28px;
       position: relative;
       z-index: 1
@@ -1380,31 +1385,35 @@
     document.getElementById('modal-confirm').addEventListener('click', function (e) { if (e.target === this) closeConfirmModal(); });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').then(function (reg) {
-        reg.addEventListener('updatefound', function () {
-          var newWorker = reg.installing;
-          newWorker.addEventListener('statechange', function () {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // Hay un nuevo SW, recargar para aplicar
-              window.location.reload();
-            }
+      // iOS Safari: delay SW registration until after page is fully loaded
+      // to avoid blank screen caused by SW taking control mid-navigation
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js').then(function (reg) {
+          reg.addEventListener('updatefound', function () {
+            var newWorker = reg.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener('statechange', function () {
+              // Only reload if there was already a controller (not first install)
+              // On iOS first install this fires immediately and causes blank screen
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // Show toast instead of hard reload on iOS to avoid blank screen
+                toast('Actualización disponible. Recarga la página.', 'info');
+              }
+            });
           });
-        });
-      }).catch(function (err) { console.error('SW Error', err); });
-
-      var refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', function () {
-        if (!refreshing) {
-          window.location.reload();
-          refreshing = true;
-        }
+        }).catch(function (err) { console.error('SW Error', err); });
+        // Removed controllerchange auto-reload - causes infinite blank screen on iOS PWA
       });
     }
 
     // ============================================================
-    // INICIO
+    // INICIO - Wrapped in DOMContentLoaded for iOS Safari compatibility
     // ============================================================
-    init();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
   </script>
 </body>
 

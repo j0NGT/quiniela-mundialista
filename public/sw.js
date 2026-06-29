@@ -12,7 +12,7 @@ self.addEventListener('fetch', function(e) {
       return r || fetch(e.request).then(function(resp) {
         if (resp.status === 200) {
           var c = resp.clone();
-          caches.open('quiniela-v3').then(function(cache) {
+          caches.open('quiniela-v4').then(function(cache) {
             cache.put(e.request, c);
           });
         }

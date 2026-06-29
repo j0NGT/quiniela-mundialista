@@ -1,4 +1,4 @@
-const CACHE_NAME = 'quiniela-v3';
+const CACHE_NAME = 'quiniela-v4';
 
 self.addEventListener('install', function(e) {
   self.skipWaiting();
@@ -21,15 +21,27 @@ self.addEventListener('activate', function(e) {
 });
 
 self.addEventListener('fetch', function(e) {
-  // Ignorar las peticiones a Supabase para que siempre vayan a la red sin pasar por caché
-  if (e.request.url.includes('supabase.co')) {
+  var url = e.request.url;
+
+  // iOS Safari fix: always pass through non-GET, supabase, and external CDN requests
+  // Returning nothing (undefined) from respondWith causes iOS to hang/blank
+  if (
+    e.request.method !== 'GET' ||
+    url.includes('supabase.co') ||
+    url.includes('fonts.googleapis.com') ||
+    url.includes('fonts.gstatic.com') ||
+    url.includes('cdn.tailwindcss.com') ||
+    url.includes('cdn.jsdelivr.net') ||
+    url.includes('cdnjs.cloudflare.com')
+  ) {
+    // Let these go straight to network - don't call respondWith at all
     return;
   }
 
-  // Estrategia Network First, fallback a Cache
+  // Network First strategy for same-origin assets
   e.respondWith(
     fetch(e.request).then(function(resp) {
-      if (resp.status === 200 && e.request.method === 'GET') {
+      if (resp && resp.status === 200) {
         var c = resp.clone();
         caches.open(CACHE_NAME).then(function(cache) {
           cache.put(e.request, c);
@@ -39,10 +51,11 @@ self.addEventListener('fetch', function(e) {
     }).catch(function() {
       return caches.match(e.request).then(function(r) {
         if (r) return r;
-        // Si es una navegación y falla, devolvemos la raíz si está en caché (para PWA offline)
         if (e.request.destination === 'document') {
           return caches.match('/');
         }
+        // iOS fix: return a proper 503 instead of undefined
+        return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
       });
     })
   );
