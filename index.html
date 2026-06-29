@@ -3,19 +3,33 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Quiniela Mundialista</title>
   <meta name="description" content="Predice los marcadores de los octavos de final del Mundial FIFA">
   <meta name="theme-color" content="#080c14">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23080c14'/%3E%3Ccircle cx='256' cy='220' r='110' fill='none' stroke='%23d4a537' stroke-width='14'/%3E%3Cpath d='M205 220 L245 260 L310 180' fill='none' stroke='%23d4a537' stroke-width='18' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ctext x='256' y='390' text-anchor='middle' font-family='sans-serif' font-size='72' font-weight='bold' fill='%23d4a537'%3EQ%3C/text%3E%3C/svg%3E">
+  <link rel="apple-touch-icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23080c14'/%3E%3Ccircle cx='256' cy='220' r='110' fill='none' stroke='%23d4a537' stroke-width='14'/%3E%3Cpath d='M205 220 L245 260 L310 180' fill='none' stroke='%23d4a537' stroke-width='18' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ctext x='256' y='390' text-anchor='middle' font-family='sans-serif' font-size='72' font-weight='bold' fill='%23d4a537'%3EQ%3C/text%3E%3C/svg%3E">
   <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
     href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script>
+    tailwind = {
+      config: {
+        theme: {
+          extend: {
+            colors: { bg: '#080c14', surface: '#0d1320', card: '#111a2e', border: '#1a2744', gold: '#d4a537', goldlight: '#f0d078', success: '#10b981', danger: '#ef4444', info: '#3b82f6', txt: '#e2e8f0', muted: '#5a6a8a' },
+            fontFamily: { display: ['Oswald', 'sans-serif'], body: ['DM Sans', 'sans-serif'] }
+          }
+        }
+      }
+    };
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
@@ -24,8 +38,6 @@
     // ============================================================
     var SB_URL = 'https://xorknuzclwwxtyelwypx.supabase.co';
     var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhvcmtudXpjbHd3eHR5ZWx3eXB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NzcwNjAsImV4cCI6MjA5ODE1MzA2MH0.RmNPehSveuEcqIlBceaz6iX-h9egdHX7z70rvp2z8is';
-
-    tailwind.config = { theme: { extend: { colors: { bg: '#080c14', surface: '#0d1320', card: '#111a2e', border: '#1a2744', gold: '#d4a537', goldlight: '#f0d078', success: '#10b981', danger: '#ef4444', info: '#3b82f6', txt: '#e2e8f0', muted: '#5a6a8a' }, fontFamily: { display: ['Oswald', 'sans-serif'], body: ['DM Sans', 'sans-serif'] } } } }
   </script>
   <style>
     :root {
@@ -53,7 +65,8 @@
       font-family: 'DM Sans', sans-serif;
       background: var(--bg);
       color: #e2e8f0;
-      min-height: 100vh; min-height: 100dvh;
+      min-height: 100vh;
+      min-height: 100dvh;
       overflow-x: hidden;
       /* iOS safe area support */
       padding-bottom: env(safe-area-inset-bottom);
@@ -77,7 +90,7 @@
     .bg-blob {
       position: fixed;
       border-radius: 50%;
-      filter: blur(130px);
+      /* Removed filter: blur(130px) as it causes memory limits and blank screens on iOS Safari */
       pointer-events: none;
       z-index: 0
     }
@@ -295,7 +308,8 @@
 
     #content {
       margin-left: 240px;
-      min-height: 100vh; min-height: 100dvh;
+      min-height: 100vh;
+      min-height: 100dvh;
       padding: 24px 28px;
       position: relative;
       z-index: 1
@@ -1387,7 +1401,7 @@
     if ('serviceWorker' in navigator) {
       // iOS Safari: delay SW registration until after page is fully loaded
       // to avoid blank screen caused by SW taking control mid-navigation
-      window.addEventListener('load', function() {
+      window.addEventListener('load', function () {
         navigator.serviceWorker.register('/sw.js').then(function (reg) {
           reg.addEventListener('updatefound', function () {
             var newWorker = reg.installing;
